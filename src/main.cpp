@@ -33,6 +33,20 @@ struct sPath {
             direction = DIR_UNDEFINED;
         }
     }
+
+    bool DoesIntersect(const olc::vf2d& posA, const olc::vf2d& posB){
+        if (direction == DIR_HORIZONTAL && posA.x == posB.x){
+            if(((start.x <= posA.x && posA.x <= end.x) || (end.x <= posA.x && posA.x <= start.x)) && 
+               ((posA.y <= start.y && start.y <= posB.y) || (posB.y <= start.y && start.y <= posB.y)))
+                    return true;
+        }
+        else if (direction == DIR_VERTICAL && posA.y == posB.y){
+            if(((start.y <= posA.y && posA.y <= end.y) || (end.y <= posA.y && posA.y <= start.y)) && 
+               ((posA.x <= start.x && start.x <= posB.x) || (posB.x <= start.x && start.x <= posB.x)))
+                    return true;
+        }
+        return false;
+    }
 };
 
 class GAME : public olc::PixelGameEngine {
@@ -46,6 +60,11 @@ private:
     olc::vi2d viPosA = vfPos + olc::vi2d(0, -nPosR);
     olc::vi2d viPosB = vfPos + olc::vi2d(nPosS, nPosT);
     olc::vi2d viPosC = vfPos + olc::vi2d(-nPosS, nPosT);
+
+    olc::vf2d vfPosPrev;
+    std::vector<olc::vf2d> vNewNodes;
+    bool bShipFree = false;
+    char nLastDir = DIR_UNDEFINED;
 
     std::vector<sPath> vPath;
     int nCurrPath = 2;
@@ -130,91 +149,216 @@ public:
         olc::Pixel pLineColor(olc::WHITE);
 
         char direction = GetDirection(fElapsedTime);
-        if(direction == DIR_UP){
-            if(vPath[nCurrPath].direction == DIR_VERTICAL){
-                if(vfPos.y > vPath[nCurrPath].end.y && vPath[nCurrPath].start.y > vPath[nCurrPath].end.y){
-                    vfPos.y -= fElapsedTime * 75;
-                    if (vfPos.y < vPath[nCurrPath].end.y) vfPos.y = vPath[nCurrPath].end.y;
+        if(!bShipFree){
+            if(direction == DIR_UP){
+                if(vPath[nCurrPath].direction == DIR_VERTICAL){
+                    if(vfPos.y > vPath[nCurrPath].end.y && vPath[nCurrPath].start.y > vPath[nCurrPath].end.y){
+                        vfPos.y -= fElapsedTime * 75;
+                        if (vfPos.y < vPath[nCurrPath].end.y) vfPos.y = vPath[nCurrPath].end.y;
+                    }
+                    if(vfPos.y > vPath[nCurrPath].start.y && vPath[nCurrPath].end.y > vPath[nCurrPath].start.y){
+                        vfPos.y -= fElapsedTime * 75;
+                        if (vfPos.y < vPath[nCurrPath].start.y) vfPos.y = vPath[nCurrPath].start.y;
+                    }
                 }
-                if(vfPos.y > vPath[nCurrPath].start.y && vPath[nCurrPath].end.y > vPath[nCurrPath].start.y){
-                    vfPos.y -= fElapsedTime * 75;
-                    if (vfPos.y < vPath[nCurrPath].start.y) vfPos.y = vPath[nCurrPath].start.y;
+                else if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
+                    if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_UP){
+                        nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+                    }
+                    else if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_UP){
+                        nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                    }
+                    else if(GetKey(olc::Key::SPACE).bHeld){
+                        vfPosPrev = vfPos;
+                        vfPos.y -= fElapsedTime * 75;
+                        if(vfPos.y < nCorner) vfPos.y = nCorner;
+                        if(vfPos != vfPosPrev){
+                            bShipFree = true;
+                        }
+                    }
                 }
             }
-            else if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
-                if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_UP){
-                    nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+            if(direction == DIR_DOWN){
+                if(vPath[nCurrPath].direction == DIR_VERTICAL){
+                    if(vfPos.y < vPath[nCurrPath].end.y && vPath[nCurrPath].start.y < vPath[nCurrPath].end.y){
+                        vfPos.y += fElapsedTime * 75;
+                        if (vfPos.y > vPath[nCurrPath].end.y) vfPos.y = vPath[nCurrPath].end.y;
+                    }
+                    if(vfPos.y < vPath[nCurrPath].start.y && vPath[nCurrPath].end.y < vPath[nCurrPath].start.y){
+                        vfPos.y += fElapsedTime * 75;
+                        if (vfPos.y > vPath[nCurrPath].start.y) vfPos.y = vPath[nCurrPath].start.y;
+                    }
                 }
-                if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_UP){
-                    nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                else if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
+                    if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_DOWN){
+                        nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+                    }
+                    else if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_DOWN){
+                        nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                    }
+                    else if(GetKey(olc::Key::SPACE).bHeld){
+                        vfPosPrev = vfPos;
+                        vfPos.y += fElapsedTime * 75;
+                        if(vfPos.y > ScreenHeight()-nCorner) vfPos.y = ScreenHeight()-nCorner;
+                        if(vfPos != vfPosPrev){
+                            bShipFree = true;
+                        }
+                    }
+                }
+            }
+            if(direction == DIR_LEFT){
+                if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
+                    if(vfPos.x > vPath[nCurrPath].end.x && vPath[nCurrPath].start.x > vPath[nCurrPath].end.x){
+                        vfPos.x -= fElapsedTime * 75;
+                        if (vfPos.x < vPath[nCurrPath].end.x) vfPos.x = vPath[nCurrPath].end.x;
+                    }
+                    if(vfPos.x > vPath[nCurrPath].start.x && vPath[nCurrPath].end.x > vPath[nCurrPath].start.x){
+                        vfPos.x -= fElapsedTime * 75;
+                        if (vfPos.x < vPath[nCurrPath].start.x) vfPos.x = vPath[nCurrPath].start.x;
+                    }
+                }
+                else if(vPath[nCurrPath].direction == DIR_VERTICAL){
+                    if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_LEFT){
+                        nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+                    }
+                    else if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_LEFT){
+                        nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                    }
+                    else if(GetKey(olc::Key::SPACE).bHeld){
+                        vfPosPrev = vfPos;
+                        vfPos.x -= fElapsedTime * 75;
+                        if(vfPos.x < nCorner) vfPos.x = nCorner;
+                        if(vfPos != vfPosPrev){
+                            bShipFree = true;
+                        }
+                    }
+                }
+            }
+            if(direction == DIR_RIGHT){
+                if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
+                    if(vfPos.x < vPath[nCurrPath].end.x && vPath[nCurrPath].start.x < vPath[nCurrPath].end.x){
+                        vfPos.x += fElapsedTime * 75;
+                        if (vfPos.x > vPath[nCurrPath].end.x) vfPos.x = vPath[nCurrPath].end.x;
+                    }
+                    if(vfPos.x < vPath[nCurrPath].start.x && vPath[nCurrPath].end.x < vPath[nCurrPath].start.x){
+                        vfPos.x += fElapsedTime * 75;
+                        if (vfPos.x > vPath[nCurrPath].start.x) vfPos.x = vPath[nCurrPath].start.x;
+                    }
+                }
+                else if(vPath[nCurrPath].direction == DIR_VERTICAL){
+                    if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_RIGHT){
+                        nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+                    }
+                    else if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_RIGHT){
+                        nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                    }
+                    else if(GetKey(olc::Key::SPACE).bHeld){
+                        vfPosPrev = vfPos;
+                        vfPos.x += fElapsedTime * 75;
+                        if(vfPos.x > ScreenWidth()-nCorner) vfPos.x = ScreenWidth()-nCorner;
+                        if(vfPos != vfPosPrev){
+                            bShipFree = true;
+                        }
+                    }
                 }
             }
         }
-        if(direction == DIR_DOWN){
-            if(vPath[nCurrPath].direction == DIR_VERTICAL){
-                if(vfPos.y < vPath[nCurrPath].end.y && vPath[nCurrPath].start.y < vPath[nCurrPath].end.y){
-                    vfPos.y += fElapsedTime * 75;
-                    if (vfPos.y > vPath[nCurrPath].end.y) vfPos.y = vPath[nCurrPath].end.y;
-                }
-                if(vfPos.y < vPath[nCurrPath].start.y && vPath[nCurrPath].end.y < vPath[nCurrPath].start.y){
-                    vfPos.y += fElapsedTime * 75;
-                    if (vfPos.y > vPath[nCurrPath].start.y) vfPos.y = vPath[nCurrPath].start.y;
-                }
+        else{
+            if(nLastDir == DIR_UNDEFINED){
+                vNewNodes.push_back(vfPosPrev);
+                nLastDir = direction;
+                nCurrPath = -1;
             }
-            else if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
-                if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_DOWN){
-                    nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
+            else{
+                if(direction == DIR_UP){
+                    if(nLastDir == DIR_LEFT || nLastDir == DIR_RIGHT){
+                        vNewNodes.push_back(vfPosPrev);
+                    }
+                    vfPos.y -= fElapsedTime * 65;
+                    if(vfPos.y < nCorner) vfPos.y = nCorner;
+                    nLastDir = DIR_UP;
+                    for(int i = 0; i < vPath.size(); i++){
+                        if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
+                            nCurrPath = i;
+                            vNewNodes.clear();
+                            bShipFree = false; 
+                            nLastDir = DIR_UNDEFINED;
+                        }
+                    }
                 }
-                if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_DOWN){
-                    nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
+                else if(direction == DIR_DOWN){
+                    if(nLastDir == DIR_LEFT || nLastDir == DIR_RIGHT){
+                        vNewNodes.push_back(vfPosPrev);
+                    }
+                    vfPos.y += fElapsedTime * 65;
+                    if(vfPos.y > ScreenHeight()-nCorner) vfPos.y = ScreenHeight()-nCorner;
+                    nLastDir = DIR_DOWN;
+                    for(int i = 0; i < vPath.size(); i++){
+                        if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
+                            nCurrPath = i;
+                            vNewNodes.clear();
+                            bShipFree = false; 
+                            nLastDir = DIR_UNDEFINED;
+                        }
+                    }
                 }
+                else if(direction == DIR_LEFT){
+                    if(nLastDir == DIR_UP || nLastDir == DIR_DOWN){
+                        vNewNodes.push_back(vfPosPrev);
+                    }
+                    vfPos.x -= fElapsedTime * 65;
+                    if(vfPos.x < nCorner) vfPos.x = nCorner;
+                    nLastDir = DIR_LEFT;
+                    for(int i = 0; i < vPath.size(); i++){
+                        if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
+                            nCurrPath = i;
+                            vNewNodes.clear();
+                            bShipFree = false; 
+                            nLastDir = DIR_UNDEFINED;
+                        }
+                    }
+                }
+                else if(direction == DIR_RIGHT){
+                    if(nLastDir == DIR_UP || nLastDir == DIR_DOWN){
+                        vNewNodes.push_back(vfPosPrev);
+                    }
+                    vfPos.x += fElapsedTime * 65;
+                    if(vfPos.x > ScreenWidth()-nCorner) vfPos.x = ScreenWidth()-nCorner;
+                    nLastDir = DIR_RIGHT;
+                    for(int i = 0; i < vPath.size(); i++){
+                        if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
+                            nCurrPath = i;
+                            vNewNodes.clear();
+                            bShipFree = false; 
+                            nLastDir = DIR_UNDEFINED;
+                        }
+                    }
+                }
+                vfPosPrev = vfPos;
             }
-        }
-        if(direction == DIR_LEFT){
-            if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
-                if(vfPos.x > vPath[nCurrPath].end.x && vPath[nCurrPath].start.x > vPath[nCurrPath].end.x){
-                    vfPos.x -= fElapsedTime * 75;
-                    if (vfPos.x < vPath[nCurrPath].end.x) vfPos.x = vPath[nCurrPath].end.x;
-                }
-                if(vfPos.x > vPath[nCurrPath].start.x && vPath[nCurrPath].end.x > vPath[nCurrPath].start.x){
-                    vfPos.x -= fElapsedTime * 75;
-                    if (vfPos.x < vPath[nCurrPath].start.x) vfPos.x = vPath[nCurrPath].start.x;
-                }
-            }
-            else if(vPath[nCurrPath].direction == DIR_VERTICAL){
-                if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_LEFT){
-                    nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
-                }
-                if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_LEFT){
-                    nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
-                }
-            }
-        }
-        if(direction == DIR_RIGHT){
-            if(vPath[nCurrPath].direction == DIR_HORIZONTAL){
-                if(vfPos.x < vPath[nCurrPath].end.x && vPath[nCurrPath].start.x < vPath[nCurrPath].end.x){
-                    vfPos.x += fElapsedTime * 75;
-                    if (vfPos.x > vPath[nCurrPath].end.x) vfPos.x = vPath[nCurrPath].end.x;
-                }
-                if(vfPos.x < vPath[nCurrPath].start.x && vPath[nCurrPath].end.x < vPath[nCurrPath].start.x){
-                    vfPos.x += fElapsedTime * 75;
-                    if (vfPos.x > vPath[nCurrPath].start.x) vfPos.x = vPath[nCurrPath].start.x;
-                }
-            }
-            else if(vPath[nCurrPath].direction == DIR_VERTICAL){
-                if(vfPos == vPath[nCurrPath].end && GetOutDir(vPath, nCurrPath, DIR_END) == DIR_RIGHT){
-                    nCurrPath = (nCurrPath == vPath.size()-1 ? 0 : nCurrPath+1);
-                }
-                if(vfPos == vPath[nCurrPath].start && GetOutDir(vPath, nCurrPath, DIR_START) == DIR_RIGHT){
-                    nCurrPath = (nCurrPath == 0 ? vPath.size()-1 : nCurrPath-1);
-                }
-            }
+
         }
 
         for(int i = 0; i < vPath.size(); i++){
             if(i == nCurrPath) pLineColor = olc::Pixel(0,192,255);
             else pLineColor = olc::WHITE;
             DrawLine(vPath[i].start, vPath[i].end, pLineColor);
+        }
+
+        if(bShipFree){
+            if(vNewNodes.size() > 1){
+                for(int i=1; i < vNewNodes.size(); i++){
+                    DrawLine(vNewNodes[i], vNewNodes[i-1], olc::Pixel(255,64,64));
+                }
+                DrawLine(vNewNodes.back(),vfPos, olc::Pixel(0,255,0));
+            }
+            else if(vNewNodes.size() == 1){
+                DrawLine(vNewNodes[0], vfPos, olc::Pixel(255,64,0));
+            }
+            else{
+                //DrawLine(vfPosPrev, vfPos, olc::Pixel(255,64,0));
+            }
+            
         }
 
         DrawTriangle(viPosA,viPosB,viPosC, olc::RED);
