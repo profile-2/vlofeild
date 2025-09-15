@@ -1,0 +1,42 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "C/C++: g++.exe build active file",
+			"command": "C:/msys64/ucrt64/bin/g++.exe",
+			"args": [
+				"-fdiagnostics-color=always",
+				"-g",
+				"${file}",
+				"-o",
+				"${fileDirname}\\..\\bin\\${fileBasenameNoExtension}.exe",
+				"-lopengl32",
+                "-lshlwapi",
+                "-lgdiplus",
+                "-ldwmapi",
+                "-lgdi32",
+                "-std=c++17"
+			],
+			"options": {
+				"cwd": "C:/msys64/ucrt64/bin"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"detail": "compiler: C:/msys64/ucrt64/bin/g++.exe"
+		},
+        {
+            "label": "Run EXE",
+            "type": "shell",
+            "command": "${fileDirname}\\..\\bin\\${fileBasenameNoExtension}.exe",
+            "dependsOn": "Build and Run",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "detail": "Run the compiled executable"
+        }
+	]
+}
