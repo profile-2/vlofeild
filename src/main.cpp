@@ -67,7 +67,9 @@ private:
     char nLastDir = DIR_UNDEFINED;
 
     std::vector<sPath> vPath;
+    olc::vf2d vfTarget = olc::vf2d(10.0,10.0);
     int nCurrPath = 2;
+    int nPathPrev = -1;
 
 public:
     GAME() {
@@ -129,6 +131,115 @@ public:
         else{
             return DIR_UNDEFINED;
         }
+    }
+
+    bool CalculatePath(std::vector<sPath> vPath, std::vector<olc::vf2d> vNewPath, const int& nOut1, const int& nOut2, const olc::vf2d& vfTarget){
+        // out1 sPath correspondiente a vNewPath[0]
+        // out2 sPath correspondiente a vNewPath.back
+        bool newPathInvert = false;
+        std::vector<sPath> vTempPath;
+
+        if(nOut1 == nOut2){
+            if(vPath[nOut1].direction == DIR_VERTICAL){
+                if((vNewNodes.back().y - vPath[nOut1].start.y) < (vNewNodes[0].y - vPath[nOut1].start.y)) //revisar
+                    newPathInvert = true; 
+            }
+            if(vPath[nOut1].direction == DIR_HORIZONTAL){
+                if((vNewNodes.back().x - vPath[nOut1].start.x) < (vNewNodes[0].x - vPath[nOut1].start.x)) //revisar
+                    newPathInvert = true; 
+            }
+        }
+        else if(nOut2 < nOut1){
+            newPathInvert = true;
+        }
+        //for newPath
+        for(int i=0; i < vPath.size(); i++){
+            if(i < nOut1){
+                vTempPath.emplace_back(vPath[i]);
+            }
+            else if(i == nOut1){
+                int newPathStart;
+                if(!newPathInvert){
+                    newPathStart = 0;
+                }
+                else{
+                    newPathStart = vNewPath.size()-1;
+                }
+
+                vTempPath.emplace_back(sPath(vPath[i].start, vNewNodes[newPathStart]));
+
+                for(int i = 0, mod = newPathInvert ? 1 : -1; i < vNewPath.size() - 1; i++){
+                    vTempPath.emplace_back(sPath(vNewNodes[newPathStart],vNewNodes[newPathStart+mod]));
+                    newPathStart += mod;
+                }
+
+                if(nOut1 == nOut2){
+                    vTempPath.emplace_back(sPath(vNewNodes.back(),vPath[i].end));
+                }
+            }
+            else if(i < nOut2){
+
+            }
+            else if(i == nOut2){
+                vTempPath.emplace_back(sPath(vNewNodes.back(),vPath[i].end));
+            }
+            else{
+                vPath.emplace_back(vPath[i]);
+            }
+        }
+
+        // test tempPath
+        int intersects = 0;
+        for(auto path: vTempPath){
+            if(sPath(vfTarget,olc::vf2d(vfTarget.x, ScreenWidth()+1)).DoesIntersect(path.start,path.end)); //overload DoesIntersect(sPath)
+                intersects++;
+        }
+
+        if(intersects % 2 == 0){ // intersects is even meaning target is outside the path and alt path is required
+            vTempPath.clear();
+            
+            int nOut1Correct;
+            int nOut2Correct;
+            if(!newPathInvert){
+                nOut1Correct = nOut1;
+                nOut2Correct = nOut2;
+            }
+            else{
+                nOut1Correct = nOut2;
+                nOut2Correct = nOut1;
+            }
+
+            for(int i = nOut1Correct; i <= nOut2Correct; i++){
+                if(i == nOut1Correct){
+                    vTempPath.emplace_back(sPath(vNewPath.back(),vPath[i].end));
+                }
+                else if(i < nOut2Correct){
+                    vTempPath.emplace_back(vPath[i]);
+                }
+                else if (i == nOut2Correct){
+                    int newPathStart;
+                    if(!newPathInvert){
+                        newPathStart = 0;
+                    }
+                    else{
+                        newPathStart = vNewPath.size()-1;
+                    }
+
+                    vTempPath.emplace_back(sPath(vPath[i].start,vNewPath[newPathStart]));
+
+                    for(int i = 0, mod = newPathInvert ? -1 : 1; i < vNewPath.size()-1; i++){
+                        vTempPath.emplace_back(sPath(vNewNodes[newPathStart],vNewNodes[newPathStart+mod]));
+                        newPathStart += mod;
+                    }
+                }
+                else{
+
+                }
+            }
+            vPath.clear();
+            vPath = vTempPath;
+        }
+        return false;
     }
 
     bool OnUserCreate(){
@@ -267,6 +378,7 @@ public:
             if(nLastDir == DIR_UNDEFINED){
                 vNewNodes.push_back(vfPosPrev);
                 nLastDir = direction;
+                nPathPrev = nCurrPath;
                 nCurrPath = -1;
             }
             else{
@@ -280,6 +392,8 @@ public:
                     for(int i = 0; i < vPath.size(); i++){
                         if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
                             nCurrPath = i;
+                            vNewNodes.emplace_back(vfPos);
+                            CalculatePath(vPath, vNewNodes, nPathPrev, nCurrPath, vfTarget);
                             vNewNodes.clear();
                             bShipFree = false; 
                             nLastDir = DIR_UNDEFINED;
@@ -296,6 +410,8 @@ public:
                     for(int i = 0; i < vPath.size(); i++){
                         if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
                             nCurrPath = i;
+                            vNewNodes.emplace_back(vfPos);
+                            CalculatePath(vPath, vNewNodes, nPathPrev, nCurrPath, vfTarget);
                             vNewNodes.clear();
                             bShipFree = false; 
                             nLastDir = DIR_UNDEFINED;
@@ -312,6 +428,8 @@ public:
                     for(int i = 0; i < vPath.size(); i++){
                         if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
                             nCurrPath = i;
+                            vNewNodes.emplace_back(vfPos);
+                            CalculatePath(vPath, vNewNodes, nPathPrev, nCurrPath, vfTarget);
                             vNewNodes.clear();
                             bShipFree = false; 
                             nLastDir = DIR_UNDEFINED;
@@ -328,6 +446,8 @@ public:
                     for(int i = 0; i < vPath.size(); i++){
                         if (vPath[i].DoesIntersect(vfPos, vfPosPrev)){
                             nCurrPath = i;
+                            vNewNodes.emplace_back(vfPos);
+                            CalculatePath(vPath, vNewNodes, nPathPrev, nCurrPath, vfTarget);
                             vNewNodes.clear();
                             bShipFree = false; 
                             nLastDir = DIR_UNDEFINED;
@@ -350,13 +470,10 @@ public:
                 for(int i=1; i < vNewNodes.size(); i++){
                     DrawLine(vNewNodes[i], vNewNodes[i-1], olc::Pixel(255,64,64));
                 }
-                DrawLine(vNewNodes.back(),vfPos, olc::Pixel(0,255,0));
+                DrawLine(vNewNodes.back(),vfPos, olc::Pixel(255,64,0));
             }
             else if(vNewNodes.size() == 1){
                 DrawLine(vNewNodes[0], vfPos, olc::Pixel(255,64,0));
-            }
-            else{
-                //DrawLine(vfPosPrev, vfPos, olc::Pixel(255,64,0));
             }
             
         }
