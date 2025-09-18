@@ -38,6 +38,13 @@ struct sPath{
             return olc::vf2d();
     }
 
+    void AddNode(olc::vf2d vfPointA, olc::vf2d vfPointB){
+        bool vertical = vfPointA.x == vfPointB.x;
+        if(vertical && nodes.empty()) nodes.push_back(0);
+        if(vertical) nodes.push_back(vfPointB.y - vfPointA.y);
+        else nodes.push_back(vfPointB.x - vfPointA.x);
+    }
+
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
 
     olc::vf2d GetStartAbs(int node){
@@ -51,9 +58,6 @@ struct sPath{
             }
             return coord;
         }
-        // else if(node == nodes.size()){
-        //     return GetEndAbs(node);
-        // }
         else 
             return olc::vf2d();
     }
@@ -66,9 +70,6 @@ struct sPath{
             }
             return coord;
         }
-        // if(node == nodes.size()){
-        //     return origin;
-        // }
         else
             return olc::vf2d();
     }
@@ -83,11 +84,38 @@ struct sPath{
     }
 
     int GetStartExit(int node){
-        return 0;
+        int prevNode = node == 0 ? nodes.size()-1 : node-1;
+
+        if(IsVertical(node)){
+            if (nodes[prevNode] < 0)
+                return DIR_RIGHT;
+            else
+                return DIR_LEFT;
+        }
+        else{
+            if (nodes[prevNode] < 0)
+                return DIR_DOWN;
+            else
+                return DIR_UP;
+        }
+        return DIR_UNDEFINED;
     }
 
     int GetEndExit(int node){
-        return 0;
+        int nextNode = node == nodes.size()-1 ? 0 : node+1;
+        if(IsVertical(node)){
+            if (nodes[nextNode] < 0)
+                return DIR_LEFT;
+            else
+                return DIR_RIGHT;
+        }
+        else{
+            if (nodes[nextNode] < 0)
+                return DIR_UP;
+            else
+                return DIR_DOWN;
+        }
+        return DIR_UNDEFINED;
     }
 
     bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B){
@@ -302,6 +330,15 @@ private:
 
     cShip ship = cShip(olc::vf2d(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), fFieldMarginTop, fFieldMarginBottom, fFieldMarginLeft, fFieldMarginRight);
     sPath path = sPath(olc::vf2d(fFieldMarginLeft, fFieldMarginTop));
+    sPath trail = sPath(olc::vf2d());
+
+    olc::vf2d vfCurrStart;
+    olc::vf2d vfCurrEnd;
+    int nCurrStrDir;
+    int nCurrEndDir;
+
+    olc::vf2d vfDeparture;
+    olc::vf2d vfArrival;
 
 public:
     GAME(){
@@ -314,6 +351,17 @@ public:
         else return false;
     }
 
+    bool PathUpdate(int nNode){
+        if(nNode < path.nodes.size()){
+            vfCurrStart = path.GetStartAbs(nNode);
+            vfCurrEnd = path.GetEndAbs(nNode);
+            nCurrStrDir = path.GetStartExit(nNode);
+            nCurrEndDir = path.GetEndExit(nNode);
+            return true;
+        }
+        return false;
+    }
+
     bool OnUserCreate(){
         path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
         path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
@@ -321,6 +369,7 @@ public:
         path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
 
         SnapShipToLine(0);
+        PathUpdate(0);
         return true;
     }
 
@@ -338,16 +387,32 @@ public:
             if(GetKey(olc::Key::SPACE).bHeld){
                 ship.ReleaseFromLine();
                 path.currentNode = -1;
+                // vfDeparture = ship.GetPos(); // necesario?
+                // trail.origin = ship.GetPos();
             }
             else{
                 ship.SetLastPos(ship.GetPos());
             }
+
+            if(ship.GetPos() == vfCurrEnd && direction == nCurrEndDir){
+                path.currentNode = path.currentNode == path.nodes.size()-1 ? 0 : path.currentNode+1;
+                PathUpdate(path.currentNode);
+                SnapShipToLine(path.currentNode);
+            }
+            if(ship.GetPos() == vfCurrStart && direction == nCurrStrDir){
+                path.currentNode = path.currentNode == 0 ? path.nodes.size()-1 : path.currentNode-1;
+                PathUpdate(path.currentNode);
+                SnapShipToLine(path.currentNode);
+            }
+
             ship.Move(direction, fElapsedTime * 75);
+
             if(!ship.GetSnap() && !GetKey(olc::Key::SPACE).bHeld){
                 int line = path.NodesInstect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
                     path.currentNode = line;
+                    PathUpdate(path.currentNode);
                 }
             }
         }
