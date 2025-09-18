@@ -18,6 +18,7 @@ enum DIRECTIONS{
     DIR_END
 };
 
+#pragma region sPath
 struct sPath{
     std::vector<float> nodes;
     int currentNode;
@@ -82,11 +83,62 @@ struct sPath{
     }
 
     int GetStartExit(int node){
-
+        return 0;
     }
 
     int GetEndExit(int node){
+        return 0;
+    }
+
+    bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B){
         
+        float point2AX = point2A.x < point2B.x ? point2A.x : point2B.x;
+        float point2BX = point2A.x > point2B.x ? point2A.x : point2B.x;
+        float point2AY = point2A.y < point2B.y ? point2A.y : point2B.y;
+        float point2BY = point2A.y > point2B.y ? point2A.y : point2B.y;
+
+        float point1AX = point1A.x < point1B.x ? point1A.x : point1B.x;
+        float point1BX = point1A.x > point1B.x ? point1A.x : point1B.x;
+        float point1AY = point1A.y < point1B.y ? point1A.y : point1B.y;
+        float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
+
+        if(IsVertical(node)){
+            if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
+                return true;
+        }
+        else{
+            if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
+                return true;
+        }
+        return false;
+    }
+    bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B){
+        return DoesIntersect(node, point1A, point1B, GetStartAbs(node), GetEndAbs(node));
+    }
+
+    int NodesInstect(olc::vf2d point1A, olc::vf2d point1B){
+        olc::vf2d point2A = origin;
+        olc::vf2d point2B;
+        for(int i=0; i < nodes.size(); i++){
+            point2B = GetEnd(i) + point2A;
+            if(DoesIntersect(i, point1A, point1B, point2A, point2B))
+                return i;
+            point2A = point2B;
+        }
+        return -1;
+    }
+
+    int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B){
+        int count = 0;
+        olc::vf2d point2A = origin;
+        olc::vf2d point2B;
+        for(int i=0; i < nodes.size(); i++){
+            point2B = GetEnd(i) + point2A;
+            if(DoesIntersect(i, point1A, point1B, point2A, point2B))
+                count++;
+            point2A = point2B;
+        }
+        return count;
     }
 
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
@@ -101,9 +153,11 @@ struct sPath{
 
 };
 
+#pragma region cShip
 class cShip{
 private:
     olc::vf2d pos;
+    olc::vf2d lastPos;
     int direction;
     float clampT;
     float clampB;
@@ -118,7 +172,7 @@ private:
 
 public:
     cShip(olc::vf2d vfPos, const float& fClampTop, const float& fClampBottom, const float& fClampLeft, const float& fClampRight): 
-    pos(vfPos), clampT(fClampTop), clampB(fClampBottom), clampL(fClampLeft), clampR(fClampRight){
+    pos(vfPos), lastPos(vfPos), clampT(fClampTop), clampB(fClampBottom), clampL(fClampLeft), clampR(fClampRight){
         direction = DIR_UP;
         snapToLine = false;
     }
@@ -231,10 +285,15 @@ public:
         pge.DrawTriangle(vertA,vertB,vertC,color);
     }
 
+    void SetLastPos(const olc::vf2d& vfLastPos) { lastPos = vfLastPos; }
+
     olc::vf2d GetPos() { return pos; }
+    olc::vf2d GetLastPos() { return lastPos; }
+    bool GetSnap() { return snapToLine; }
 };
 
 class GAME : public olc::PixelGameEngine{
+#pragma region GAME_private
 private:
     const float fFieldMarginLeft = 5;
     const float fFieldMarginRight = SCREEN_WIDTH - 5;
@@ -265,6 +324,7 @@ public:
         return true;
     }
 
+    #pragma region OnUserUpdate
     bool OnUserUpdate(float fElapsedTime){
         Clear(olc::BLANK);
         int direction = DIR_UNDEFINED;
@@ -275,10 +335,23 @@ public:
         else if(GetKey(olc::Key::RIGHT).bHeld) direction = DIR_RIGHT;
 
         if (direction != DIR_UNDEFINED){
-            if(GetKey(olc::Key::SPACE).bPressed)
+            if(GetKey(olc::Key::SPACE).bHeld){
                 ship.ReleaseFromLine();
+                path.currentNode = -1;
+            }
+            else{
+                ship.SetLastPos(ship.GetPos());
+            }
             ship.Move(direction, fElapsedTime * 75);
+            if(!ship.GetSnap() && !GetKey(olc::Key::SPACE).bHeld){
+                int line = path.NodesInstect(ship.GetPos(),ship.GetLastPos());
+                if(line != -1){
+                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
+                    path.currentNode = line;
+                }
+            }
         }
+
 
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
