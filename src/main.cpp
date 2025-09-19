@@ -45,6 +45,22 @@ struct sPath{
         else nodes.push_back(vfPointB.x - vfPointA.x);
     }
 
+    void ModEnd(int nNode, const olc::vf2d& vfNewEnd){
+        if(nNode < nodes.size()){
+            olc::vf2d start = GetStartAbs(nNode);
+            if(IsVertical(nNode)) nodes[nNode] = vfNewEnd.y -start.y;
+            else nodes[nNode] = vfNewEnd.y - start.y;
+        }
+    }
+
+    void ModStart(int nNode, const olc::vf2d& vfNewStart){
+        if(nNode < nodes.size()){
+            olc::vf2d end = GetEndAbs(nNode);
+            if(IsVertical(nNode)) nodes[nNode] = end.y - vfNewStart.y;
+            else nodes[nNode] = end.x -vfNewStart.x;
+        }
+    }
+
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
 
     olc::vf2d GetStartAbs(int node){
@@ -149,10 +165,12 @@ struct sPath{
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
             point2B = GetEnd(i) + point2A;
+            p2util::Echo(i, 0); p2util::Echo(" ",0);p2util::Echo(point2A, 0); p2util::Echo(" ",0); p2util::Echo(point2B);
             if(DoesIntersect(i, point1A, point1B, point2A, point2B))
                 return i;
             point2A = point2B;
         }
+        p2util::Echo("");
         return -1;
     }
 
@@ -187,6 +205,7 @@ private:
     olc::vf2d pos;
     olc::vf2d lastPos;
     int direction;
+    int lastDirection;
     float clampT;
     float clampB;
     float clampL;
@@ -197,6 +216,8 @@ private:
     float snapB;
     float snapL;
     float snapR;
+
+    std::vector<olc::vf2d> trail;
 
 public:
     cShip(olc::vf2d vfPos, const float& fClampTop, const float& fClampBottom, const float& fClampLeft, const float& fClampRight): 
@@ -241,6 +262,7 @@ public:
         if(pos.x < left) pos.x = left;
         else if(pos.x > right) pos.x = right;
 
+        lastDirection = direction;
         direction = nDirection;
     }
 
@@ -317,7 +339,30 @@ public:
 
     olc::vf2d GetPos() { return pos; }
     olc::vf2d GetLastPos() { return lastPos; }
-    bool GetSnap() { return snapToLine; }
+    bool IsSnapd() { return snapToLine; }
+
+    int AddTrail(olc::vf2d pos) { 
+        trail.emplace_back(pos); 
+        return trail.size();
+    }
+    void ClearTrail() { trail.clear(); }
+
+    void DrawTrail(olc::PixelGameEngine& pge){
+        if(!trail.empty()){
+            pge.DrawLine(pos, trail.back(), olc::Pixel(255,255,0));
+            for(int i=0; i < trail.size()-1; i++){
+                pge.DrawLine(trail[i], trail[i+1], olc::RED);
+            }
+        }
+    }
+
+    bool DidTurn(int nDirection){
+        if((lastDirection == DIR_UP || lastDirection == DIR_DOWN) && (nDirection == DIR_LEFT || nDirection == DIR_RIGHT))
+                return true;
+        if((lastDirection == DIR_LEFT || lastDirection == DIR_RIGHT) && (nDirection == DIR_UP || nDirection == DIR_DOWN))
+                return true;
+        return false;
+    }
 };
 
 class GAME : public olc::PixelGameEngine{
@@ -364,8 +409,16 @@ public:
 
     bool OnUserCreate(){
         path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
-        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
-        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
+        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop-40);
+        path.nodes.push_back(-20);
+        path.nodes.push_back(20);
+        path.nodes.push_back(20);
+        path.nodes.push_back(20);
+        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft+40);
+        path.nodes.push_back(-20);
+        path.nodes.push_back(-20);
+        path.nodes.push_back(20);
+        path.nodes.push_back(-20);
         path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
 
         SnapShipToLine(0);
@@ -384,20 +437,18 @@ public:
         else if(GetKey(olc::Key::RIGHT).bHeld) direction = DIR_RIGHT;
 
         if (direction != DIR_UNDEFINED){
-            if(GetKey(olc::Key::SPACE).bHeld){
+            if(GetKey(olc::Key::SPACE).bPressed){
                 ship.ReleaseFromLine();
                 path.currentNode = -1;
-                // vfDeparture = ship.GetPos(); // necesario?
-                // trail.origin = ship.GetPos();
-            }
-            else{
-                ship.SetLastPos(ship.GetPos());
+                ship.ClearTrail();
+                ship.AddTrail(ship.GetPos());
             }
 
             if(ship.GetPos() == vfCurrEnd && direction == nCurrEndDir){
                 path.currentNode = path.currentNode == path.nodes.size()-1 ? 0 : path.currentNode+1;
                 PathUpdate(path.currentNode);
                 SnapShipToLine(path.currentNode);
+                p2util::Echo(path.GetStartAbs(path.currentNode), 0); p2util::Echo(" ",0); p2util::Echo(path.GetEndAbs(path.currentNode));
             }
             if(ship.GetPos() == vfCurrStart && direction == nCurrStrDir){
                 path.currentNode = path.currentNode == 0 ? path.nodes.size()-1 : path.currentNode-1;
@@ -405,9 +456,13 @@ public:
                 SnapShipToLine(path.currentNode);
             }
 
+            if(!ship.IsSnapd() && ship.DidTurn(direction)){
+                ship.AddTrail(ship.GetPos());
+            }
+
             ship.Move(direction, fElapsedTime * 75);
 
-            if(!ship.GetSnap() && !GetKey(olc::Key::SPACE).bHeld){
+            if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bPressed){
                 int line = path.NodesInstect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
@@ -417,10 +472,13 @@ public:
             }
         }
 
+        //test
+        
 
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
         ship.Draw(*this);
+        if(!ship.IsSnapd()) ship.DrawTrail(*this);
         return true;
     }
 };
