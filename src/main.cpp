@@ -18,6 +18,16 @@ enum DIRECTIONS{
     DIR_END
 };
 
+/*
+TODO:
+correct path line snaping after cut
+reverse new path
+arrival == departure
+returning to departure path without turning
+checking target and reverse graft
+departure or arrival path is colinear with old path
+*/
+
 #pragma region sPath
 struct sPath{
     std::vector<float> nodes;
@@ -58,20 +68,22 @@ struct sPath{
         else nodes.push_back(vfPointB.x - vfPointA.x);
     }
 
-    void ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
+    int ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
         if(nNode < nodes.size()){
             olc::vf2d start = GetStartAbs(nNode);
-            if(IsVertical(nNode)) nodes[nNode] = vfNewEnd.y -start.y;
-            else nodes[nNode] = vfNewEnd.x - start.x;
+            if(IsVertical(nNode)) return vfNewEnd.y - start.y;
+            else return vfNewEnd.x - start.x;
         }
+        return 0;
     }
 
-    void ModStart(int nNode, const olc::vf2d& vfNewStart){
+    int ModStart(int nNode, const olc::vf2d& vfNewStart){
         if(nNode < nodes.size()){
             olc::vf2d end = GetEndAbs(nNode);
-            if(IsVertical(nNode)) nodes[nNode] = end.y - vfNewStart.y;
-            else nodes[nNode] = end.x - vfNewStart.x;
+            if(IsVertical(nNode)) return end.y - vfNewStart.y;
+            else return end.x - vfNewStart.x;
         }
+        return 0;
     }
 
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
@@ -173,18 +185,15 @@ struct sPath{
         return DoesIntersect(node, point1A, point1B, GetStartAbs(node), GetEndAbs(node));
     }
 
-    int NodesInstect(olc::vf2d point1A, olc::vf2d point1B){
+    int NodesIntersect(olc::vf2d point1A, olc::vf2d point1B){
         olc::vf2d point2A = origin;
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
             point2B = GetEnd(i) + point2A;
-            // p2util::Echo(i, 0); p2util::Echo(" ",0);p2util::Echo(point1A, 0); p2util::Echo(" ",0); p2util::Echo(point1B,0);
-            // p2util::Echo(" ",0);p2util::Echo(point2A, 0); p2util::Echo(" ",0); p2util::Echo(point2B);
             if(DoesIntersect(i, point1A, point1B, point2A, point2B))
                 return i;
             point2A = point2B;
         }
-        //p2util::Echo("");
         return -1;
     }
 
@@ -228,8 +237,10 @@ struct sPath{
         p2util::Echo("");
         
         std::vector<float> vTempPath;
-        ModEnd(nDeparture, vNewPath[0]);
-        ModStart(nArrival, vNewPath.back());
+        int departureEnd = ModEnd(nDeparture, vNewPath[0]);
+        int arrivalStart = ModStart(nArrival, vNewPath.back());
+        nodes[nDeparture] = departureEnd;
+        nodes[nArrival] = arrivalStart;
 
         for(int i = 0; i < nodes.size(); i++){
             if(i < nDeparture){
@@ -239,9 +250,7 @@ struct sPath{
                 vTempPath.push_back(nodes[i]);
                 for(int j = 0; j < vNewPath.size()-1; j++){
                     vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+1]));
-                    //p2util::Echo(CalcPath(vNewPath[j], vNewPath[j+1]));
                 }
-                //p2util::Echo(vNewPath.back());
             }
             else if (i >= nArrival){
                 vTempPath.push_back(nodes[i]);
@@ -279,6 +288,7 @@ public:
     cShip(olc::vf2d vfPos, const float& fClampTop, const float& fClampBottom, const float& fClampLeft, const float& fClampRight): 
     pos(vfPos), lastPos(vfPos), clampT(fClampTop), clampB(fClampBottom), clampL(fClampLeft), clampR(fClampRight){
         direction = DIR_UP;
+        lastDirection = DIR_UNDEFINED;
         snapToLine = false;
     }
 
@@ -287,6 +297,7 @@ public:
     }
 
     void SetDirection(int nDirection) { direction = nDirection; }
+    int GetDirection() { return direction; }
 
     void Move(int nDirection, float fSpeed){
         float top;
@@ -318,7 +329,7 @@ public:
         if(pos.x < left) pos.x = left;
         else if(pos.x > right) pos.x = right;
 
-        lastDirection = direction;
+        //lastDirection = direction;
         direction = nDirection;
     }
 
@@ -396,13 +407,14 @@ public:
     olc::vf2d GetPos() { return pos; }
     olc::vf2d GetLastPos() { return lastPos; }
     int GetLastDirection() { return lastDirection; }
+    void SetLastDirection(int nDirection) { lastDirection = nDirection; }
     bool IsSnapd() { return snapToLine; }
 
     int AddTrail(olc::vf2d pos) { 
         p2util::Echo(pos);
         trail.emplace_back(pos); 
         lastPos = pos;
-        lastDirection = direction;
+        //lastDirection = direction;
         return trail.size();
     }
     void ClearTrail() { trail.clear(); }
@@ -512,11 +524,11 @@ public:
 
         if (direction != DIR_UNDEFINED){
             if(GetKey(olc::Key::SPACE).bPressed && ship.IsSnapd() && path.InDirection(direction, ship.GetPos())){
-                ship.ReleaseFromLine();
+                ship.ReleaseFromLine(); // ship.snapedToLine = false;
                 nDeparture = path.currentNode;
                 path.currentNode = -1;
                 ship.ClearTrail();
-                ship.AddTrail(ship.GetPos());
+                ship.AddTrail(ship.GetPos()); // add departure coord
             }
 
             if(ship.GetPos() == vfCurrEnd && direction == nCurrEndDir){
@@ -539,17 +551,20 @@ public:
             ship.Move(direction, fElapsedTime * 75);
 
             if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bHeld){
-                int line = path.NodesInstect(ship.GetPos(),ship.GetLastPos());
+                int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
                     ship.AddTrail(ship.GetPos());
                     path.currentNode = line;
-                    PathUpdate(path.currentNode);
                     nArrival = path.currentNode;
                     path.GraftPath(nDeparture, nArrival, ship.GetTrail());
+                    line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
+                    PathUpdate(path.currentNode);
+                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
                 }
             }
             ship.SetLastPos(ship.GetPos());
+            ship.SetLastDirection(ship.GetDirection());
         }
 
         //test
