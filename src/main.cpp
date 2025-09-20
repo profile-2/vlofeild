@@ -20,8 +20,7 @@ enum DIRECTIONS{
 
 /*
 TODO:
-*arrival == departure
-*returning to departure path without turning
+*fix path reversed && arrival == departure
 checking target and reverse graft
 departure or arrival path is colinear with old path
 
@@ -245,7 +244,7 @@ struct sPath{
     }
 
     int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath){
-        bool inverse = nDeparture > nArrival;
+        bool inverse = (nDeparture > nArrival) || (nDeparture == nArrival && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
         if (inverse){
             int temp = nArrival;
             nArrival = nDeparture;
@@ -254,15 +253,12 @@ struct sPath{
         std::vector<float> vTempPath;
         int departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath[0]);
         int arrivalStart = ModStart(nArrival, inverse ? vNewPath[0] : vNewPath.back());
-        // nodes[nDeparture] = departureEnd;
-        // nodes[nArrival] = arrivalStart;
 
         for(int i = 0; i < nodes.size(); i++){
             if(i < nDeparture){
                 vTempPath.push_back(nodes[i]);
             }
             else if (i == nDeparture){
-                // vTempPath.push_back(nodes[i]);
                 vTempPath.push_back(departureEnd);
 
                 int iterB = inverse ? vNewPath.size()-1 : 0;
