@@ -20,12 +20,17 @@ enum DIRECTIONS{
 
 /*
 TODO:
-correct path line snaping after cut
 reverse new path
 arrival == departure
 returning to departure path without turning
 checking target and reverse graft
 departure or arrival path is colinear with old path
+
+bugs:
+sometimes after cutting lines that shouldn't move move a pixel, probaly rouding error from float -> int
+
+idea:
+recursive division of areas to check inner area, checking vertices with raytracing
 */
 
 #pragma region sPath
@@ -48,17 +53,13 @@ struct sPath{
             return olc::vf2d();
     }
 
+    olc::vf2d GetEnd() { return GetEnd(currentNode);}
+
     void AddNode(std::vector<float>& vNodes, olc::vf2d vfPointA, olc::vf2d vfPointB){
         bool vertical = vfPointA.x == vfPointB.x;
         // if(vertical && vNodes.empty()) vNodes.push_back(0);
         if(vertical) vNodes.push_back(vfPointB.y - vfPointA.y);
         else vNodes.push_back(vfPointB.x - vfPointA.x);
-    }
-
-    float CalcPath(olc::vf2d vfPointA, olc::vf2d vfPointB){
-        bool vertical = vfPointA.x == vfPointB.x;
-        if(vertical) return (vfPointB.y - vfPointA.y);
-        else return (vfPointB.x - vfPointA.x);
     }
 
     void AddNode(olc::vf2d vfPointA, olc::vf2d vfPointB){ // not used?
@@ -67,6 +68,13 @@ struct sPath{
         if(vertical) nodes.push_back(vfPointB.y - vfPointA.y);
         else nodes.push_back(vfPointB.x - vfPointA.x);
     }
+
+    float CalcPath(olc::vf2d vfPointA, olc::vf2d vfPointB){
+        bool vertical = vfPointA.x == vfPointB.x;
+        if(vertical) return (vfPointB.y - vfPointA.y);
+        else return (vfPointB.x - vfPointA.x);
+    }
+
 
     int ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
         if(nNode < nodes.size()){
@@ -86,8 +94,6 @@ struct sPath{
         return 0;
     }
 
-    olc::vf2d GetEnd() { return GetEnd(currentNode);}
-
     olc::vf2d GetStartAbs(int node){
         if(node == 0){
             return origin;
@@ -102,6 +108,9 @@ struct sPath{
         else 
             return olc::vf2d();
     }
+    olc::vf2d GetStartAbs(){
+        return GetStartAbs(currentNode);
+    }
 
     olc::vf2d GetEndAbs(int node){
         if(node < nodes.size()){
@@ -113,6 +122,9 @@ struct sPath{
         }
         else
             return olc::vf2d();
+    }
+    olc::vf2d GetEndAbs(){
+        return GetEndAbs(currentNode);
     }
 
     void GetPoints(std::vector<olc::vf2d>& ends, const int& node){
@@ -232,9 +244,9 @@ struct sPath{
         return count % 2 == 0;
     }
 
-    void GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath){
-        for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        p2util::Echo("");
+    int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath){
+        //for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
+        //p2util::Echo("");
         
         std::vector<float> vTempPath;
         int departureEnd = ModEnd(nDeparture, vNewPath[0]);
@@ -256,11 +268,13 @@ struct sPath{
                 vTempPath.push_back(nodes[i]);
             }
         }
-        for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        p2util::Echo("");
+        //for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
+        //p2util::Echo("");
         nodes = vTempPath;
-        for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        p2util::Echo("");
+        // for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
+        // p2util::Echo("");
+
+        return nDeparture + vNewPath.size();
     }
 };
 
@@ -411,7 +425,7 @@ public:
     bool IsSnapd() { return snapToLine; }
 
     int AddTrail(olc::vf2d pos) { 
-        p2util::Echo(pos);
+        // p2util::Echo(pos);
         trail.emplace_back(pos); 
         lastPos = pos;
         //lastDirection = direction;
@@ -435,11 +449,11 @@ public:
 
     bool DidTurn(int nDirection){
         if((lastDirection == DIR_UP || lastDirection == DIR_DOWN) && (nDirection == DIR_LEFT || nDirection == DIR_RIGHT)){
-            p2util::Echo("turn1");    
+            // p2util::Echo("turn1");    
             return true;
         }
         if((lastDirection == DIR_LEFT || lastDirection == DIR_RIGHT) && (nDirection == DIR_UP || nDirection == DIR_DOWN)){
-            p2util::Echo("turn2");    
+            // p2util::Echo("turn2");    
             return true;
         }
         return false;
@@ -553,14 +567,11 @@ public:
             if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bHeld){
                 int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
-                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
-                    ship.AddTrail(ship.GetPos());
-                    path.currentNode = line;
-                    nArrival = path.currentNode;
-                    path.GraftPath(nDeparture, nArrival, ship.GetTrail());
-                    line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
+                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
+                    ship.AddTrail(ship.GetPos()); // adding arr pos
+                    path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail()); // arr is line, graftPath return new arr node
                     PathUpdate(path.currentNode);
-                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
+                    ship.SnapToLine(path.GetStartAbs(), path.GetEndAbs(), path.IsVertical());
                 }
             }
             ship.SetLastPos(ship.GetPos());
