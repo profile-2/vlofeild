@@ -20,13 +20,12 @@ enum DIRECTIONS{
 
 /*
 TODO:
-*fix path reversed && arrival == departure
 checking target and reverse graft
 departure or arrival path is colinear with old path
 
 bugs:
-sometimes after cutting lines that shouldn't move move a pixel, probaly rouding error from float -> int
-sometimes when cutting inverted ship snaps to the wrong line
+**sometimes after cutting lines that shouldn't move move a pixel, probaly rouding error from float -> int
+sometimes when cutting inverted ship snaps to the wrong line. Happends when cutting up or right without turning once
 
 idea:
 recursive division of areas to check inner area, checking vertices with raytracing
@@ -54,7 +53,7 @@ struct sPath{
 
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
 
-    void AddNode(std::vector<float>& vNodes, olc::vf2d vfPointA, olc::vf2d vfPointB){
+    void AddNode(std::vector<float>& vNodes, olc::vf2d vfPointA, olc::vf2d vfPointB){ // not used?
         bool vertical = vfPointA.x == vfPointB.x;
         // if(vertical && vNodes.empty()) vNodes.push_back(0);
         if(vertical) vNodes.push_back(vfPointB.y - vfPointA.y);
@@ -75,7 +74,7 @@ struct sPath{
     }
 
 
-    int ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
+    float ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
         if(nNode < nodes.size()){
             olc::vf2d start = GetStartAbs(nNode);
             if(IsVertical(nNode)) return vfNewEnd.y - start.y;
@@ -84,7 +83,7 @@ struct sPath{
         return 0;
     }
 
-    int ModStart(int nNode, const olc::vf2d& vfNewStart){
+    float ModStart(int nNode, const olc::vf2d& vfNewStart){
         if(nNode < nodes.size()){
             olc::vf2d end = GetEndAbs(nNode);
             if(IsVertical(nNode)) return end.y - vfNewStart.y;
@@ -251,8 +250,8 @@ struct sPath{
             nDeparture = temp;
         }
         std::vector<float> vTempPath;
-        int departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath[0]);
-        int arrivalStart = ModStart(nArrival, inverse ? vNewPath[0] : vNewPath.back());
+        float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath[0]);
+        float arrivalStart = ModStart(nArrival, inverse ? vNewPath[0] : vNewPath.back());
 
         for(int i = 0; i < nodes.size(); i++){
             if(i < nDeparture){
@@ -279,11 +278,9 @@ struct sPath{
                 vTempPath.push_back(nodes[i]);
             }
         }
-        //for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        //p2util::Echo("");
+        
         nodes = vTempPath;
-        // for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        // p2util::Echo("");
+        
         if(inverse) return nArrival;
         return nDeparture + vNewPath.size();
     }
@@ -430,6 +427,7 @@ public:
     void SetLastPos(const olc::vf2d& vfLastPos) { lastPos = vfLastPos; }
 
     olc::vf2d GetPos() { return pos; }
+    void SetPos(olc::vf2d vfPos) { pos = vfPos; }
     olc::vf2d GetLastPos() { return lastPos; }
     int GetLastDirection() { return lastDirection; }
     void SetLastDirection(int nDirection) { lastDirection = nDirection; }
@@ -568,9 +566,8 @@ public:
             }
             
             if(!ship.IsSnapd() && ship.DidTurn(direction)){
-                ship.AddTrail(ship.GetPos());
-                // p2util::Echo(direction);
-                // p2util::Echo(ship.GetLastDirection());
+                //ship.SetPos(olc::vf2d((int)ship.GetPos().x,(int)ship.GetPos().y));
+                 ship.AddTrail(ship.GetPos());
             }
 
             ship.Move(direction, fElapsedTime * 75);
