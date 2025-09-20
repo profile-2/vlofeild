@@ -20,9 +20,8 @@ enum DIRECTIONS{
 
 /*
 TODO:
-*reverse new path
-arrival == departure
-returning to departure path without turning
+*arrival == departure
+*returning to departure path without turning
 checking target and reverse graft
 departure or arrival path is colinear with old path
 
@@ -272,6 +271,10 @@ struct sPath{
                 for(int j = iterB; j != iterE; j+=iterMod){
                     vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+iterMod]));
                 }
+
+                if(nDeparture == nArrival){
+                    vTempPath.push_back(arrivalStart);
+                }
             }
             else if (i == nArrival){
                 vTempPath.push_back(arrivalStart);
@@ -455,7 +458,7 @@ public:
         return trail.size();
     }
 
-    bool TrailSize() { return trail.size(); }
+    bool TrailSize() { p2util::Echo(trail.size()); return trail.size(); }
 
     std::vector<olc::vf2d> GetTrail(){ return trail; }
 
@@ -580,10 +583,17 @@ public:
                 int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
-                    ship.AddTrail(ship.GetPos()); // adding arr pos
-                    path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail()); // arr is line, graftPath return new arr node
-                    PathUpdate(path.currentNode);
-                    ship.SnapToLine(path.GetStartAbs(), path.GetEndAbs(), path.IsVertical());
+                    if (nDeparture == line && ship.GetTrail().size() < 2){
+                        p2util::Echo(ship.GetTrail().size());
+                        path.currentNode = line;
+                        PathUpdate(path.currentNode);
+                    }
+                    else{
+                        ship.AddTrail(ship.GetPos()); // adding arr pos
+                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail()); // arr is line, graftPath return new arr node
+                        PathUpdate(path.currentNode);
+                        ship.SnapToLine(path.GetStartAbs(), path.GetEndAbs(), path.IsVertical());
+                    }
                 }
             }
             ship.SetLastPos(ship.GetPos());
