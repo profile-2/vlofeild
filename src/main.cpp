@@ -20,7 +20,7 @@ enum DIRECTIONS{
 
 /*
 TODO:
-reverse new path
+*reverse new path
 arrival == departure
 returning to departure path without turning
 checking target and reverse graft
@@ -28,6 +28,7 @@ departure or arrival path is colinear with old path
 
 bugs:
 sometimes after cutting lines that shouldn't move move a pixel, probaly rouding error from float -> int
+sometimes when cutting inverted ship snaps to the wrong line
 
 idea:
 recursive division of areas to check inner area, checking vertices with raytracing
@@ -245,26 +246,37 @@ struct sPath{
     }
 
     int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath){
-        //for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
-        //p2util::Echo("");
-        
+        bool inverse = nDeparture > nArrival;
+        if (inverse){
+            int temp = nArrival;
+            nArrival = nDeparture;
+            nDeparture = temp;
+        }
         std::vector<float> vTempPath;
-        int departureEnd = ModEnd(nDeparture, vNewPath[0]);
-        int arrivalStart = ModStart(nArrival, vNewPath.back());
-        nodes[nDeparture] = departureEnd;
-        nodes[nArrival] = arrivalStart;
+        int departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath[0]);
+        int arrivalStart = ModStart(nArrival, inverse ? vNewPath[0] : vNewPath.back());
+        // nodes[nDeparture] = departureEnd;
+        // nodes[nArrival] = arrivalStart;
 
         for(int i = 0; i < nodes.size(); i++){
             if(i < nDeparture){
                 vTempPath.push_back(nodes[i]);
             }
             else if (i == nDeparture){
-                vTempPath.push_back(nodes[i]);
-                for(int j = 0; j < vNewPath.size()-1; j++){
-                    vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+1]));
+                // vTempPath.push_back(nodes[i]);
+                vTempPath.push_back(departureEnd);
+
+                int iterB = inverse ? vNewPath.size()-1 : 0;
+                int iterE = inverse ? 0 : vNewPath.size()-1;
+                int iterMod = inverse ? -1 : 1;
+                for(int j = iterB; j != iterE; j+=iterMod){
+                    vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+iterMod]));
                 }
             }
-            else if (i >= nArrival){
+            else if (i == nArrival){
+                vTempPath.push_back(arrivalStart);
+            }
+            else if (i > nArrival){
                 vTempPath.push_back(nodes[i]);
             }
         }
@@ -273,7 +285,7 @@ struct sPath{
         nodes = vTempPath;
         // for(auto n: nodes) {p2util::Echo(n,0); p2util::Echo(" ",0); }
         // p2util::Echo("");
-
+        if(inverse) return nArrival;
         return nDeparture + vNewPath.size();
     }
 };
