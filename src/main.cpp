@@ -25,6 +25,7 @@ prevent the newpath to intersect with itself, iterate over pairs of trail points
 
 bugs:
 sometimes when cutting inverted ship snaps to the wrong line. Happends when cutting up or right without turning once
+reverse graft has some issues determining arrival node after graft
 
 idea:
 recursive division of areas to check inner area, checking vertices with raytracing
@@ -227,19 +228,6 @@ struct sPath{
         return count;
     }
 
-    // int NodesIntersectCount(const std::vector<float>& vNodes, olc::vf2d point1A, olc::vf2d point1B){
-    //     int count = 0;
-    //     olc::vf2d point2A = origin;
-    //     olc::vf2d point2B;
-    //     for(int i=0; i < nodes.size(); i++){
-    //         point2B = GetEnd(i) + point2A;
-    //         if(DoesIntersect(i, point1A, point1B, point2A, point2B))
-    //             count++;
-    //         point2A = point2B;
-    //     }
-    //     return count;
-    // }
-
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
         pge.DrawLine(GetStartAbs(node), GetEndAbs(node), color);
     }
@@ -265,12 +253,13 @@ struct sPath{
     bool IsTargetInside(const olc::vf2d& vfTarget){
         olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
         int count = NodesIntersectCount(vfTarget, raycast);
-        p2util::Echo(count);
         return count % 2 == 0;
     }
 
     int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath, const olc::vf2d& vfTarget){
-        bool inverse = (nDeparture > nArrival) || (nDeparture == nArrival && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
+        bool inverse =  (nDeparture > nArrival) || 
+                        (nDeparture == nArrival && nodes[nDeparture] > 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0])) ||
+                        (nDeparture == nArrival && nodes[nDeparture] < 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) > CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
         if (inverse){
             int temp = nArrival;
             nArrival = nDeparture;
@@ -287,11 +276,13 @@ struct sPath{
             else if (i == nDeparture){
                 vTempPath.push_back(departureEnd);
 
-                int iterB = inverse ? vNewPath.size()-1 : 0; //this is silly
-                int iterE = inverse ? 0 : vNewPath.size()-1; //this is silly
-                int iterMod = inverse ? -1 : 1;             //this is silly
-                for(int j = iterB; j != iterE; j+=iterMod){
-                    vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+iterMod]));
+                if(inverse){
+                    for(int j = vNewPath.size()-1; j > 0; j--)
+                        vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j-1]));
+                }
+                else{
+                    for(int j = 0; j < vNewPath.size()-1; j++)
+                        vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+1]));
                 }
 
                 if(nDeparture == nArrival){
@@ -347,11 +338,17 @@ struct sPath{
                 vTempPath.emplace_back(departureEnd);
             }
             
-            int iterB = inverse ? 0 : vNewPath.size()-1; // this is silly
-            int iterE = inverse ? vNewPath.size()-1 : 0; // this is silly
-            int iterMod = inverse ? 1 : -1; // this is silly
-            for(int i = iterB; i != iterE; i+=iterMod){
-                vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+iterMod])); 
+            // int iterB = inverse ? 0 : vNewPath.size()-1; // this is silly
+            // int iterE = inverse ? vNewPath.size()-1 : 0; // this is silly
+            // int iterMod = inverse ? 1 : -1; // this is silly
+
+            if(inverse){
+                for(int i = 0; i < vNewPath.size()-1; i++)
+                    vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+1])); 
+            }
+            else{
+                for(int i = vNewPath.size()-1; i > 0; i--)
+                    vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i-1])); 
             }
 
             if(IsVertical(nDeparture)){
@@ -522,7 +519,6 @@ public:
     bool IsSnapd() { return snapToLine; }
 
     int AddTrail(olc::vf2d pos) { 
-        // p2util::Echo(pos);
         trail.emplace_back(pos); 
         lastPos = pos;
         //lastDirection = direction;
@@ -540,17 +536,15 @@ public:
         return trail.size();
     }
 
-    bool TrailSize() { p2util::Echo(trail.size()); return trail.size(); }
+    bool TrailSize() { return trail.size(); }
 
     std::vector<olc::vf2d> GetTrail(){ return trail; }
 
     bool DidTurn(int nDirection){
         if((lastDirection == DIR_UP || lastDirection == DIR_DOWN) && (nDirection == DIR_LEFT || nDirection == DIR_RIGHT)){
-            // p2util::Echo("turn1");    
             return true;
         }
         if((lastDirection == DIR_LEFT || lastDirection == DIR_RIGHT) && (nDirection == DIR_UP || nDirection == DIR_DOWN)){
-            // p2util::Echo("turn2");    
             return true;
         }
         return false;
@@ -601,24 +595,29 @@ public:
         return false;
     }
 
-    bool OnUserCreate(){
+    void ResetField(){
+        path.origin = olc::vf2d(fFieldMarginLeft,fFieldMarginTop);
+        path.nodes.clear();
         path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
-        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop-40);
-        path.nodes.push_back(-20);
-        path.nodes.push_back(20);
-        path.nodes.push_back(20);
-        path.nodes.push_back(20);
-        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft+40);
-        path.nodes.push_back(-20);
-        path.nodes.push_back(-20);
-        path.nodes.push_back(20);
-        path.nodes.push_back(-20);
+        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
+        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
+        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
+        path.currentNode = 0;
+        ship.SetDirection(DIR_UP);
+        ship.SetLastDirection(DIR_UNDEFINED);
+        SnapShipToLine(0);
+        PathUpdate(0);
+
+    }
+
+    bool OnUserCreate(){
+        
+        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
+        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
+        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
         path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
 
         //test
-        // p2util::Echo(path.DoesIntersect(0, olc::vf2d(0,0), olc::vf2d(0,10), olc::vf2d(-5,5), olc::vf2d(5,5)));
-        // p2util::Echo(path.DoesIntersect(1, olc::vf2d(-5,5), olc::vf2d(5,5), olc::vf2d(0,0), olc::vf2d(0,10)));
-        // p2util::Echo(path.DoesIntersect(0, olc::vf2d(0,0), olc::vf2d(0,0), olc::vf2d(0.0000,0), olc::vf2d(0.0000,0)));
 
         SnapShipToLine(0);
         PathUpdate(0);
@@ -667,7 +666,6 @@ public:
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
                     if (nDeparture == line && ship.GetTrail().size() < 2){
-                        p2util::Echo(ship.GetTrail().size());
                         path.currentNode = line;
                         PathUpdate(path.currentNode);
                     }
@@ -684,11 +682,13 @@ public:
         }
 
         //test
+        if(GetKey(olc::Key::R).bPressed) ResetField();
 
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
         ship.Draw(*this);
         DrawLine(vfTarget, vfTarget, olc::RED);
+        DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
         return true;
     }
