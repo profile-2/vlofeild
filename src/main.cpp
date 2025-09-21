@@ -20,11 +20,12 @@ enum DIRECTIONS{
 
 /*
 TODO:
-checking target and reverse graft
++checking target and reverse graft
+    works for arr!=dep
 departure or arrival path is colinear with old path
+prevent the newpath to intersect with itself, iterate over pairs of trail points and test intersect with pos-lastpos, if true revert to lastpos
 
 bugs:
-**sometimes after cutting lines that shouldn't move move a pixel, probaly rouding error from float -> int
 sometimes when cutting inverted ship snaps to the wrong line. Happends when cutting up or right without turning once
 
 idea:
@@ -52,6 +53,14 @@ struct sPath{
     }
 
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
+
+    olc::vf2d GetEnd2(const std::vector<float>& vNodes, int node){
+        if(node < vNodes.size()){
+            return IsVertical(node) ? olc::vf2d(0,vNodes[node]) : olc::vf2d(vNodes[node],0);
+        }
+        else
+            return olc::vf2d();
+    }
 
     void AddNode(std::vector<float>& vNodes, olc::vf2d vfPointA, olc::vf2d vfPointB){ // not used?
         bool vertical = vfPointA.x == vfPointB.x;
@@ -220,6 +229,19 @@ struct sPath{
         return count;
     }
 
+    // int NodesIntersectCount(const std::vector<float>& vNodes, olc::vf2d point1A, olc::vf2d point1B){
+    //     int count = 0;
+    //     olc::vf2d point2A = origin;
+    //     olc::vf2d point2B;
+    //     for(int i=0; i < nodes.size(); i++){
+    //         point2B = GetEnd(i) + point2A;
+    //         if(DoesIntersect(i, point1A, point1B, point2A, point2B))
+    //             count++;
+    //         point2A = point2B;
+    //     }
+    //     return count;
+    // }
+
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
         pge.DrawLine(GetStartAbs(node), GetEndAbs(node), color);
     }
@@ -242,7 +264,14 @@ struct sPath{
         return count % 2 == 0;
     }
 
-    int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath){
+    bool IsTargetInside(const olc::vf2d& vfTarget){
+        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+        int count = NodesIntersectCount(vfTarget, raycast);
+        p2util::Echo(count);
+        return count % 2 == 0;
+    }
+
+    int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath, const olc::vf2d& vfTarget){
         bool inverse = (nDeparture > nArrival) || (nDeparture == nArrival && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
         if (inverse){
             int temp = nArrival;
@@ -250,8 +279,8 @@ struct sPath{
             nDeparture = temp;
         }
         std::vector<float> vTempPath;
-        float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath[0]);
-        float arrivalStart = ModStart(nArrival, inverse ? vNewPath[0] : vNewPath.back());
+        float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
+        float arrivalStart = ModStart(nArrival, inverse ? vNewPath.front() : vNewPath.back());
 
         for(int i = 0; i < nodes.size(); i++){
             if(i < nDeparture){
@@ -260,9 +289,9 @@ struct sPath{
             else if (i == nDeparture){
                 vTempPath.push_back(departureEnd);
 
-                int iterB = inverse ? vNewPath.size()-1 : 0;
-                int iterE = inverse ? 0 : vNewPath.size()-1;
-                int iterMod = inverse ? -1 : 1;
+                int iterB = inverse ? vNewPath.size()-1 : 0; //this is silly
+                int iterE = inverse ? 0 : vNewPath.size()-1; //this is silly
+                int iterMod = inverse ? -1 : 1;             //this is silly
                 for(int j = iterB; j != iterE; j+=iterMod){
                     vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+iterMod]));
                 }
@@ -278,8 +307,52 @@ struct sPath{
                 vTempPath.push_back(nodes[i]);
             }
         }
-        
-        nodes = vTempPath;
+
+        //check if target is inside
+        int count = 0;
+        olc::vf2d point2A = origin;
+        olc::vf2d point2B;
+        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+        for(int i=0; i < vTempPath.size(); i++){
+            point2B = GetEnd2(vTempPath, i) + point2A;
+            if(DoesIntersect(i, vfTarget, raycast, point2A, point2B))
+                count++;
+            point2A = point2B;
+        }
+
+        if(count % 2){
+            nodes = vTempPath;
+        }
+        else{
+            vTempPath.clear();
+            
+            arrivalStart = ModStart(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
+            departureEnd = ModEnd(nArrival, inverse ? vNewPath.front() : vNewPath.back());
+            
+            vTempPath.emplace_back(arrivalStart);
+            
+            int oldNodes = nArrival - nDeparture - 1;
+            if(oldNodes > 0){
+                for(int i = 0; i < oldNodes; i++){
+                    vTempPath.emplace_back(i+nDeparture+1);
+                }
+            }
+            
+            vTempPath.emplace_back(departureEnd);
+            
+            int iterB = inverse ? 0 : vNewPath.size()-1; // this is silly
+            int iterE = inverse ? vNewPath.size()-1 : 0; // this is silly
+            int iterMod = inverse ? 1 : -1; // this is silly
+            for(int i = iterB; i != iterE; i+=iterMod){
+                vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+iterMod])); 
+            }
+            
+            origin = inverse ? vNewPath.back() : vNewPath.front();
+            nodes = vTempPath;
+
+            if(inverse) return nDeparture;
+            return nArrival-nDeparture;
+        }
         
         if(inverse) return nArrival;
         return nDeparture + vNewPath.size();
@@ -489,6 +562,8 @@ private:
     int nDeparture;
     int nArrival;
 
+    olc::vf2d vfTarget = olc::vf2d(SCREEN_WIDTH-20,20);
+
 public:
     GAME(){
         sAppName = "QuiX";
@@ -583,7 +658,7 @@ public:
                     }
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
-                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail()); // arr is line, graftPath return new arr node
+                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
                         PathUpdate(path.currentNode);
                         ship.SnapToLine(path.GetStartAbs(), path.GetEndAbs(), path.IsVertical());
                     }
@@ -598,6 +673,7 @@ public:
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
         ship.Draw(*this);
+        DrawLine(vfTarget, vfTarget, olc::RED);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
         return true;
     }
