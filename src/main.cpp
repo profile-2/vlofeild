@@ -21,7 +21,7 @@ enum DIRECTIONS{
 /*
 TODO:
 +checking target and reverse graft
-    works for arr!=dep
+    doesn't work for vertical departure node
 departure or arrival path is colinear with old path
 prevent the newpath to intersect with itself, iterate over pairs of trail points and test intersect with pos-lastpos, if true revert to lastpos
 
@@ -329,16 +329,25 @@ struct sPath{
             arrivalStart = ModStart(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
             departureEnd = ModEnd(nArrival, inverse ? vNewPath.front() : vNewPath.back());
             
+            if(nArrival == nDeparture){
+                if(!inverse)
+                    arrivalStart = ModEnd(nArrival, vNewPath.back()) - ModEnd(nArrival, vNewPath.front());
+                else
+                    arrivalStart = ModEnd(nArrival, vNewPath.front()) - ModEnd(nArrival, vNewPath.back());
+            }
+
             vTempPath.emplace_back(arrivalStart);
             
-            int oldNodes = nArrival - nDeparture - 1;
-            if(oldNodes > 0){
-                for(int i = 0; i < oldNodes; i++){
-                    vTempPath.emplace_back(i+nDeparture+1);
+            if(nArrival!=nDeparture){
+                int oldNodes = nArrival - nDeparture - 1;
+                if(oldNodes > 0){
+                    for(int i = 0; i < oldNodes; i++){
+                        vTempPath.emplace_back(i+nDeparture+1);
+                    }
                 }
+                
+                vTempPath.emplace_back(departureEnd);
             }
-            
-            vTempPath.emplace_back(departureEnd);
             
             int iterB = inverse ? 0 : vNewPath.size()-1; // this is silly
             int iterE = inverse ? vNewPath.size()-1 : 0; // this is silly
