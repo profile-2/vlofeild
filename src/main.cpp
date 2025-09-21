@@ -20,8 +20,6 @@ enum DIRECTIONS{
 
 /*
 TODO:
-+checking target and reverse graft
-    doesn't work for vertical departure node
 departure or arrival path is colinear with old path
 prevent the newpath to intersect with itself, iterate over pairs of trail points and test intersect with pos-lastpos, if true revert to lastpos
 
@@ -342,7 +340,7 @@ struct sPath{
                 int oldNodes = nArrival - nDeparture - 1;
                 if(oldNodes > 0){
                     for(int i = 0; i < oldNodes; i++){
-                        vTempPath.emplace_back(i+nDeparture+1);
+                        vTempPath.emplace_back(nodes[i+nDeparture+1]);
                     }
                 }
                 
@@ -355,10 +353,18 @@ struct sPath{
             for(int i = iterB; i != iterE; i+=iterMod){
                 vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+iterMod])); 
             }
+
+            if(IsVertical(nDeparture)){
+                std::reverse(vTempPath.begin(),vTempPath.end());
+                for(float& node: vTempPath){
+                    node = node * -1;
+                }
+            }
             
             origin = inverse ? vNewPath.back() : vNewPath.front();
             nodes = vTempPath;
 
+            if(IsVertical(nDeparture)) return vNewPath.size()-1;
             if(inverse) return nDeparture;
             return nArrival-nDeparture;
         }
