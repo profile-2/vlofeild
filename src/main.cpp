@@ -323,6 +323,9 @@ struct sPath{
                     vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]); // works only for !inverse, only  for departure 
                     vTempPath.erase(vTempPath.begin()+nDeparture+1);
                 }
+                else if(vNewPath[0] == GetEndAbs(nDeparture) || vNewPath[0] == GetStartAbs(nDeparture)){
+                    // perpendicular departure from inner corner
+                }
             }
             else {
                 if(vNewPath[0].y == vNewPath[1].y){
