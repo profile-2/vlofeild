@@ -20,10 +20,12 @@ enum DIRECTIONS{
 
 /*
 TODO:
-departure or arrival path is colinear with old path
+++departure or arrival path is colinear with old path
 prevent the newpath to intersect with itself, iterate over pairs of trail points and test intersect with pos-lastpos, if true revert to lastpos
 
 bugs:
+departure from internal corner when departure is perpendicular to the active node
+departure from internal corner with reverse path
 sometimes when cutting inverted ship snaps to the wrong line. Happends when cutting up or right without turning once
 reverse graft has some issues determining arrival node after graft
 
@@ -300,6 +302,39 @@ struct sPath{
             }
         }
 
+        // if first node to be grafted is co-linear with departure node
+        if(inverse){
+            if(IsVertical(nArrival)){
+                if(vNewPath[0].x == vNewPath[1].x){
+                    vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]); // works only for !inverse, only  for departure 
+                    vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+                }
+            }
+            else {
+                if(vNewPath[0].y == vNewPath[1].y){
+                    vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+                }
+            }
+        }
+        else{
+            if(IsVertical(nDeparture)){
+                if(vNewPath[0].x == vNewPath[1].x){
+                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]); // works only for !inverse, only  for departure 
+                    vTempPath.erase(vTempPath.begin()+nDeparture+1);
+                }
+            }
+            else {
+                if(vNewPath[0].y == vNewPath[1].y){
+                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+nDeparture+1);
+                }
+            }
+        }
+        for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
+            if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+        }
+
         //check if target is inside
         int count = 0;
         olc::vf2d point2A = origin;
@@ -314,10 +349,6 @@ struct sPath{
 
 
         if(count % 2){
-            for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
-                if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
-            }
-
             nodes = vTempPath;
         }
         else{
@@ -609,7 +640,11 @@ public:
     void ResetField(){
         path.origin = olc::vf2d(fFieldMarginLeft,fFieldMarginTop);
         path.nodes.clear();
-        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
+        path.nodes.push_back(100);
+        path.nodes.push_back(50);
+        path.nodes.push_back(50);
+        path.nodes.push_back(-50);
+        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft-150);
         path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
         path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
         path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
@@ -623,10 +658,7 @@ public:
 
     bool OnUserCreate(){
         
-        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
-        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
-        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
-        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
+        ResetField();
 
         //test
 
