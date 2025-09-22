@@ -238,7 +238,7 @@ struct sPath{
         }
     }
 
-    bool InDirection(int nDir, olc::vf2d vfPos){
+    bool InDirection(int nDir, olc::vf2d vfPos, float nNode){
         olc::vf2d rayPos;
         switch(nDir){
             case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-SCREEN_WIDTH); break; } // SCREEN_WIDTH is just an arbitrary distance outside the screen
@@ -247,6 +247,9 @@ struct sPath{
             case DIR_RIGHT: { rayPos = olc::vf2d(SCREEN_WIDTH, vfPos.y); break; }
         }
         int count = NodesIntersectCount(vfPos,rayPos);
+        if((nDir == DIR_RIGHT || nDir == DIR_DOWN) && (vfPos == GetEndAbs(nNode) || vfPos == GetStartAbs(nNode)) && count > 2){
+            return count % 2 == 1;
+        }
         return count % 2 == 0;
     }
 
@@ -309,7 +312,12 @@ struct sPath{
             point2A = point2B;
         }
 
+
         if(count % 2){
+            for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
+                if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+            }
+
             nodes = vTempPath;
         }
         else{
@@ -337,10 +345,6 @@ struct sPath{
                 
                 vTempPath.emplace_back(departureEnd);
             }
-            
-            // int iterB = inverse ? 0 : vNewPath.size()-1; // this is silly
-            // int iterE = inverse ? vNewPath.size()-1 : 0; // this is silly
-            // int iterMod = inverse ? 1 : -1; // this is silly
 
             if(inverse){
                 for(int i = 0; i < vNewPath.size()-1; i++)
@@ -351,6 +355,9 @@ struct sPath{
                     vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i-1])); 
             }
 
+            // to preserve the first element of the nodes vector being horizontal, 
+            // when the departure line is vertical I reverse the vector so the last
+            // node (horizontal by necessity) becomes the first
             if(IsVertical(nDeparture)){
                 std::reverse(vTempPath.begin(),vTempPath.end());
                 for(float& node: vTempPath){
@@ -359,6 +366,10 @@ struct sPath{
             }
             
             origin = inverse ? vNewPath.back() : vNewPath.front();
+
+            for (int i = 0; i < vTempPath.size(); i++){
+                if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+            }
             nodes = vTempPath;
 
             if(IsVertical(nDeparture)) return vNewPath.size()-1;
@@ -635,7 +646,7 @@ public:
         else if(GetKey(olc::Key::RIGHT).bHeld) direction = DIR_RIGHT;
 
         if (direction != DIR_UNDEFINED){
-            if(GetKey(olc::Key::SPACE).bPressed && ship.IsSnapd() && path.InDirection(direction, ship.GetPos())){
+            if(GetKey(olc::Key::SPACE).bPressed && ship.IsSnapd() && path.InDirection(direction, ship.GetPos(), path.currentNode)){
                 ship.ReleaseFromLine(); // ship.snapedToLine = false;
                 nDeparture = path.currentNode;
                 path.currentNode = -1;
