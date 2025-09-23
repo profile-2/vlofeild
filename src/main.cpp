@@ -50,7 +50,7 @@ struct sPath{
         if(node < nodes.size())
             return IsVertical(node) ? olc::vf2d(0,nodes[node]) : olc::vf2d(nodes[node],0); 
         else
-            return olc::vf2d();
+            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
     }
 
     olc::vf2d GetEnd() { return GetEnd(currentNode);}
@@ -114,7 +114,7 @@ struct sPath{
             return coord;
         }
         else 
-            return olc::vf2d();
+            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
     }
     olc::vf2d GetStartAbs(){
         return GetStartAbs(currentNode);
@@ -129,7 +129,7 @@ struct sPath{
             return coord;
         }
         else
-            return olc::vf2d();
+            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
     }
     olc::vf2d GetEndAbs(){
         return GetEndAbs(currentNode);
@@ -309,11 +309,21 @@ struct sPath{
                     vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]); // works only for !inverse, only  for departure 
                     vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
                 }
+                else if(vNewPath[0] == GetEndAbs(nArrival)){
+                    vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
+                }
             }
             else {
                 if(vNewPath[0].y == vNewPath[1].y){
                     vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+                }
+                else if(vNewPath[0] == GetEndAbs(nArrival)){
+                    vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
                 }
             }
         }
@@ -323,8 +333,10 @@ struct sPath{
                     vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]); // works only for !inverse, only  for departure 
                     vTempPath.erase(vTempPath.begin()+nDeparture+1);
                 }
-                else if(vNewPath[0] == GetEndAbs(nDeparture) || vNewPath[0] == GetStartAbs(nDeparture)){
-                    // perpendicular departure from inner corner
+                else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
+                    vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+nDeparture);
+                    vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
                 }
             }
             else {
@@ -332,11 +344,16 @@ struct sPath{
                     vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+nDeparture+1);
                 }
+                else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
+                    vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
+                    vTempPath.erase(vTempPath.begin()+nDeparture);
+                    vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
+                }
             }
         }
-        for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
-            if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
-        }
+        // for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
+        //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+        // }
 
         //check if target is inside
         int count = 0;
@@ -392,18 +409,63 @@ struct sPath{
             // to preserve the first element of the nodes vector being horizontal, 
             // when the departure line is vertical I reverse the vector so the last
             // node (horizontal by necessity) becomes the first
+            // if(IsVertical(nDeparture)){
+            //     std::reverse(vTempPath.begin(),vTempPath.end());
+            //     for(float& node: vTempPath){
+            //         node = node * -1;
+            //     }
+            // }
+            
+            //origin = inverse ? vNewPath.back() : vNewPath.front();
+
+            //edge case
             if(IsVertical(nDeparture)){
+                if(vNewPath[0].x == vNewPath[1].x){
+                    vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture));
+                    vTempPath.erase(vTempPath.end());
+                    origin = vNewPath[1];
+                }
                 std::reverse(vTempPath.begin(),vTempPath.end());
                 for(float& node: vTempPath){
                     node = node * -1;
                 }
             }
-            
-            origin = inverse ? vNewPath.back() : vNewPath.front();
-
-            for (int i = 0; i < vTempPath.size(); i++){
-                if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+            else{
+                if(vNewPath[0].y == vNewPath[1].y){
+                    if(vNewPath[0] == GetEndAbs(nDeparture)){
+                        vTempPath.erase(vTempPath.begin());
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath){
+                            node = node * -1;
+                        }
+                        origin = vNewPath.front();
+                    }
+                    else{
+                        vTempPath[0] = ModStart(nDeparture, vNewPath[1]);
+                        vTempPath.erase(vTempPath.end());
+                        origin = vNewPath[1];
+                    }
+                }
+                else if(vNewPath[0] == GetEndAbs(nDeparture)){
+                    vTempPath.erase(vTempPath.begin());
+                    vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
+                    vTempPath.erase(vTempPath.end());
+                    std::reverse(vTempPath.begin(),vTempPath.end());
+                    for(float& node: vTempPath){
+                        node = node * -1;
+                    }
+                    origin = vNewPath[1];
+                    nodes = vTempPath;
+                    return 0;
+                }
+                else if(vNewPath[0] == GetStartAbs(nDeparture)){
+                    origin = vNewPath[0];
+                }
             }
+
+            // for (int i = 0; i < vTempPath.size(); i++){
+            //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+            // }
             nodes = vTempPath;
 
             if(IsVertical(nDeparture)) return vNewPath.size()-1;
@@ -729,6 +791,7 @@ public:
 
         //test
         if(GetKey(olc::Key::R).bPressed) ResetField();
+        if(GetKey(olc::Key::ESCAPE).bPressed) return false;
 
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
