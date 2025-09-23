@@ -418,48 +418,100 @@ struct sPath{
             
             //origin = inverse ? vNewPath.back() : vNewPath.front();
 
-            //edge case
-            if(IsVertical(nDeparture)){
-                if(vNewPath[0].x == vNewPath[1].x){
-                    vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture));
-                    vTempPath.erase(vTempPath.end());
-                    origin = vNewPath[1];
+            // EDGE CASE  - Departure from internal corner. This is a mess.
+            if(inverse){
+                if(IsVertical(nArrival)){
+                    if(vNewPath[0].x == vNewPath[1].x){
+                        vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+                        origin = vNewPath.back();
+                    }
+                    else if (vNewPath[0] == GetEndAbs(nArrival)){
+                        origin = vNewPath.back();
+                    }
+                    else{
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath){
+                            node = node * -1;
+                        }
+                        origin = vNewPath.back();
+                    }
                 }
-                std::reverse(vTempPath.begin(),vTempPath.end());
-                for(float& node: vTempPath){
-                    node = node * -1;
+                else if (vNewPath[0].y == vNewPath[1].y){
+                    vTempPath.erase(vTempPath.begin()+nArrival);
+                    origin = vNewPath.back();
+                }
+                else if(vNewPath[0] == GetStartAbs(nArrival)){
+                    vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+                    vTempPath[nArrival-nDeparture-1] += vTempPath[nArrival-nDeparture];
+                    vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+                    
+                    origin = vNewPath.back();
+                }
+                else{
+                    origin = vNewPath.back();
                 }
             }
             else{
-                if(vNewPath[0].y == vNewPath[1].y){
-                    if(vNewPath[0] == GetEndAbs(nDeparture)){
-                        vTempPath.erase(vTempPath.begin());
+                if(IsVertical(nDeparture)){
+                    if(vNewPath[0].x == vNewPath[1].x){
+                        vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture));
+                        vTempPath.erase(vTempPath.end());
+                        //origin = vNewPath[1];
                         std::reverse(vTempPath.begin(),vTempPath.end());
                         for(float& node: vTempPath){
                             node = node * -1;
                         }
                         origin = vNewPath.front();
                     }
-                    else{
-                        vTempPath[0] = ModStart(nDeparture, vNewPath[1]);
+                    else if(vNewPath[0] == GetEndAbs(nDeparture)){
+                        vTempPath.erase(vTempPath.begin());
+                        vTempPath[0] = vTempPath.front() + vTempPath.back();
                         vTempPath.erase(vTempPath.end());
                         origin = vNewPath[1];
                     }
-                }
-                else if(vNewPath[0] == GetEndAbs(nDeparture)){
-                    vTempPath.erase(vTempPath.begin());
-                    vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
-                    vTempPath.erase(vTempPath.end());
-                    std::reverse(vTempPath.begin(),vTempPath.end());
-                    for(float& node: vTempPath){
-                        node = node * -1;
+                    else{
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath){
+                            node = node * -1;
+                        }
+                        origin = vNewPath.front();
                     }
-                    origin = vNewPath[1];
-                    nodes = vTempPath;
-                    return 0;
                 }
-                else if(vNewPath[0] == GetStartAbs(nDeparture)){
-                    origin = vNewPath[0];
+                else{
+                    if(vNewPath[0].y == vNewPath[1].y){
+                        if(vNewPath[0] == GetEndAbs(nDeparture)){
+                            vTempPath.erase(vTempPath.begin());
+                            std::reverse(vTempPath.begin(),vTempPath.end());
+                            for(float& node: vTempPath){
+                                node = node * -1;
+                            }
+                            origin = vNewPath.front();
+                        }
+                        else{
+                            vTempPath[0] = ModStart(nDeparture, vNewPath[1]);
+                            vTempPath.erase(vTempPath.end());
+                            origin = vNewPath[1];
+                        }
+                    }
+                    else if(vNewPath[0] == GetEndAbs(nDeparture)){
+                        vTempPath.erase(vTempPath.begin());
+                        vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
+                        vTempPath.erase(vTempPath.end());
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath){
+                            node = node * -1;
+                        }
+                        origin = vNewPath[1];
+                        nodes = vTempPath;
+                        return 0;
+                    }
+                    else if(vNewPath[0] == GetStartAbs(nDeparture)){
+                        origin = vNewPath[0];
+                    }
+                    else{
+                        origin = vNewPath.front();
+                    }
                 }
             }
 
@@ -703,22 +755,23 @@ public:
     }
 
     void ResetField(){
+        int initialNode = 5;
         path.origin = olc::vf2d(fFieldMarginLeft,fFieldMarginTop);
         path.nodes.clear();
-        path.nodes.push_back(100);
-        path.nodes.push_back(50);
-        path.nodes.push_back(50);
-        path.nodes.push_back(-50);
-        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft-150);
+        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
         path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
         path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
-        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
+        path.nodes.push_back(-50);
+        path.nodes.push_back(50);
+        path.nodes.push_back(-50);
+        path.nodes.push_back(-50);
+        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop+100);
         path.currentNode = 0;
         ship.SetDirection(DIR_UP);
         ship.SetLastDirection(DIR_UNDEFINED);
-        SnapShipToLine(0);
-        PathUpdate(0);
-
+        SnapShipToLine(initialNode);
+        PathUpdate(initialNode);
+        path.currentNode = initialNode;
     }
 
     bool OnUserCreate(){
@@ -727,8 +780,8 @@ public:
 
         //test
 
-        SnapShipToLine(0);
-        PathUpdate(0);
+        // SnapShipToLine(0);
+        // PathUpdate(0);
         return true;
     }
 
