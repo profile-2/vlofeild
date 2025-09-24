@@ -271,6 +271,8 @@ struct sPath{
             nDeparture = temp;
         }
         std::vector<float> vTempPath;
+        int nNewCurrentNode = inverse ? nArrival : nDeparture+vNewPath.size();
+
         float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
         float arrivalStart = ModStart(nArrival, inverse ? vNewPath.front() : vNewPath.back());
 
@@ -371,8 +373,7 @@ struct sPath{
         if(count % 2){
             nodes = vTempPath;
             
-            if(inverse) return nArrival;
-            return nDeparture + vNewPath.size();
+            return nNewCurrentNode;
         }
         else{
             vTempPath.clear();
@@ -425,47 +426,88 @@ struct sPath{
             if(inverse){
                 if(IsVertical(nArrival)){
                     if(vNewPath[0].x == vNewPath[1].x){
-                        vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
-                        origin = vNewPath.back();
+                        if(IsVertical(nDeparture)){
+                            vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
+                            vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+                            std::reverse(vTempPath.begin(),vTempPath.end());
+                            for(float& node: vTempPath) node = node * -1;
+                            origin = vNewPath.back();
+                        }
+                        else{
+                            vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
+                            vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+                            origin = vNewPath.back();
+                        }
                     }
                     else if (vNewPath[0] == GetEndAbs(nArrival)){
+                        if(IsVertical(nDeparture)){
+                            std::reverse(vTempPath.begin(),vTempPath.end());
+                            for(float& node: vTempPath) node = node * -1;
+                        }
+                        origin = vNewPath.back();
+                    }
+                    else if (vNewPath[0] == GetStartAbs(nArrival)){
+                        vTempPath[nArrival-nDeparture-1] = vTempPath[nArrival-nDeparture-1] + vTempPath[nArrival-nDeparture+1];
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+                        if(IsVertical(nDeparture)){
+                            std::reverse(vTempPath.begin(),vTempPath.end());
+                            for(float& node: vTempPath) node = node * -1;
+                        }
                         origin = vNewPath.back();
                     }
                     else{
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath){
-                            node = node * -1;
+                        if(IsVertical(nDeparture)){
+                            std::reverse(vTempPath.begin(),vTempPath.end());
+                            for(float& node: vTempPath) node = node * -1;
                         }
                         origin = vNewPath.back();
                     }
                 }
                 else if (vNewPath[0].y == vNewPath[1].y){
-                    vTempPath.erase(vTempPath.begin()+nArrival);
-                    origin = vNewPath.back();
+                    if(IsVertical(nDeparture)){
+                        vTempPath[nArrival-nDeparture] = CalcPath(GetStartAbs(nArrival-nDeparture), vNewPath[1]);
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath) node = node * -1;
+                        origin = vNewPath.back();
+                    }
+                    else{
+                        vTempPath[nArrival-nDeparture] = vTempPath[0] + vTempPath[1];
+                        vTempPath.erase(vTempPath.begin()+1);
+                        origin = vNewPath.back();
+                    }
                 }
                 else if(vNewPath[0] == GetStartAbs(nArrival)){
                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
                     vTempPath[nArrival-nDeparture-1] += vTempPath[nArrival-nDeparture];
                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
-                    
+                    if(IsVertical(nDeparture)){
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath) node = node * -1;
+                    }
+
                     origin = vNewPath.back();
                 }
                 else{
+                    std::reverse(vTempPath.begin(),vTempPath.end());
+                    for(float& node: vTempPath){
+                        node = node * -1;
+                    }
                     origin = vNewPath.back();
                 }
             }
             else{
                 if(IsVertical(nDeparture)){
                     if(vNewPath[0].x == vNewPath[1].x){
-                        vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture));
+                        vTempPath[0] = vTempPath.front() + vTempPath.back();
                         vTempPath.erase(vTempPath.end());
                         //origin = vNewPath[1];
                         std::reverse(vTempPath.begin(),vTempPath.end());
                         for(float& node: vTempPath){
                             node = node * -1;
                         }
-                        origin = vNewPath.front();
+                        origin = vNewPath[1];
                     }
                     else if(vNewPath[0] == GetEndAbs(nDeparture)){
                         vTempPath.erase(vTempPath.begin());
@@ -492,7 +534,7 @@ struct sPath{
                             origin = vNewPath.front();
                         }
                         else{
-                            vTempPath[0] = ModStart(nDeparture, vNewPath[1]);
+                            vTempPath[0] = vTempPath.front() + vTempPath.back();
                             vTempPath.erase(vTempPath.end());
                             origin = vNewPath[1];
                         }
@@ -517,17 +559,17 @@ struct sPath{
                     }
                 }
             }
-
+            
             // for (int i = 0; i < vTempPath.size(); i++){
-            //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
-            // }
-            nodes = vTempPath;
-
-            if(IsVertical(nDeparture)) return vNewPath.size()-1;
-            if(inverse) return nDeparture;
-            return nArrival-nDeparture;
+                //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+                // }
         }
-        
+            
+        nodes = vTempPath;
+
+        if(IsVertical(nDeparture)) return vNewPath.size()-1;
+        if(inverse) return nDeparture;
+        return nArrival-nDeparture;
     }
 };
 
@@ -845,6 +887,7 @@ public:
 
         path.DrawAll(*this);
         path.Draw(*this, path.currentNode, olc::GREEN);
+        DrawLine(path.origin, path.origin, olc::BLUE);
         ship.Draw(*this);
         DrawLine(vfTarget, vfTarget, olc::RED);
         DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
