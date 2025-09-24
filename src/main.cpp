@@ -370,6 +370,9 @@ struct sPath{
 
         if(count % 2){
             nodes = vTempPath;
+            
+            if(inverse) return nArrival;
+            return nDeparture + vNewPath.size();
         }
         else{
             vTempPath.clear();
@@ -525,8 +528,6 @@ struct sPath{
             return nArrival-nDeparture;
         }
         
-        if(inverse) return nArrival;
-        return nDeparture + vNewPath.size();
     }
 };
 
@@ -755,17 +756,13 @@ public:
     }
 
     void ResetField(){
-        int initialNode = 5;
+        int initialNode = 0;
         path.origin = olc::vf2d(fFieldMarginLeft,fFieldMarginTop);
         path.nodes.clear();
         path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
         path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
         path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
-        path.nodes.push_back(-50);
-        path.nodes.push_back(50);
-        path.nodes.push_back(-50);
-        path.nodes.push_back(-50);
-        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop+100);
+        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
         path.currentNode = 0;
         ship.SetDirection(DIR_UP);
         ship.SetLastDirection(DIR_UNDEFINED);
