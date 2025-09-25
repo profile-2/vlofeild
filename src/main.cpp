@@ -236,7 +236,7 @@ struct sPath{
         }
     }
 
-    bool InDirection(int nDir, olc::vf2d vfPos, float nNode){
+    bool InDirection(int nDir, olc::vf2d vfPos, int nNode){
         olc::vf2d rayPos;
         switch(nDir){
             case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-SCREEN_WIDTH); break; } // SCREEN_WIDTH is just an arbitrary distance outside the screen
