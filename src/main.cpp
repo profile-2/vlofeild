@@ -20,14 +20,10 @@ enum DIRECTIONS{
 
 /*
 TODO:
-++departure or arrival path is colinear with old path
 prevent the newpath to intersect with itself, iterate over pairs of trail points and test intersect with pos-lastpos, if true revert to lastpos
 
 bugs:
-departure from internal corner when departure is perpendicular to the active node
-departure from internal corner with reverse path
-sometimes when cutting inverted ship snaps to the wrong line. Happends when cutting up or right without turning once
-reverse graft has some issues determining arrival node after graft
+the ship can ignore the old path when space is held
 
 idea:
 recursive division of areas to check inner area, checking vertices with raytracing
@@ -381,11 +377,7 @@ struct sPath{
         }
 
 
-        if(count % 2){
-            nodes = vTempPath;
-            return nNewCurrentNode;
-        }
-        else{
+        if(count % 2 == 0){
             if(IsVertical(nDeparture)) nNewCurrentNode = vNewPath.size()-1;
             else if(inverse) nNewCurrentNode = nDeparture;
             else nNewCurrentNode = nArrival-nDeparture;
@@ -423,18 +415,6 @@ struct sPath{
                 for(int i = vNewPath.size()-1; i > 0; i--)
                     vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i-1])); 
             }
-
-            // to preserve the first element of the nodes vector being horizontal, 
-            // when the departure line is vertical I reverse the vector so the last
-            // node (horizontal by necessity) becomes the first
-            // if(IsVertical(nDeparture)){
-            //     std::reverse(vTempPath.begin(),vTempPath.end());
-            //     for(float& node: vTempPath){
-            //         node = node * -1;
-            //     }
-            // }
-            
-            //origin = inverse ? vNewPath.back() : vNewPath.front();
 
             // EDGE CASE  - Departure from internal corner. This is a mess.
             if(inverse){
@@ -580,12 +560,9 @@ struct sPath{
                 }
             }
 
-            nodes = vTempPath;
-            return nNewCurrentNode;
         }
-            
-
-        
+        nodes = vTempPath;
+        return nNewCurrentNode;
     }
 };
 
@@ -654,6 +631,28 @@ public:
         if(pos.x < left) pos.x = left;
         else if(pos.x > right) pos.x = right;
 
+        if(!snapToLine && trail.size() > 1 && lastPos != trail.back()){
+            for(int i = 0; i < trail.size() -1; i++){
+                if(trail[i].x == trail[i+1].x && pos.y == lastPos.y){
+                    if((pos.x <= trail[i].x && trail[i].x <= lastPos.x) || (lastPos.x <= trail[i].x && trail[i].x <= pos.x)){
+                        if((trail[i].y <= pos.y && pos.y <= trail[i+1].y) || (trail[i+1].y <= pos.y && pos.y <= trail[i].y)){
+                            pos = lastPos;
+                        }
+                    }
+                    /*trail[i:i+1] es vertical y pos:lastPos es horizontal y trail[i].x entre pos.x y lastPos.x y pos.y entre trail[i].y y trail[i+1].y*/ /* o */
+                    /*trail[i:i+1] es horizontal y pos:lastPos es vertical y trail[i].y entre pos.y y lastPos.y y pos.x entre trail[i].x y trail[i+1].x*/
+
+                }
+                else if(trail[i].y == trail[i+1].y && pos.x == lastPos.x){
+                    if((pos.y <= trail[i].y && trail[i].y <= lastPos.y) || (lastPos.y <= trail[i].y && trail[i].y <= pos.y)){
+                        if((trail[i].x <= pos.x && pos.x <= trail[i+1].x) || (trail[i+1].x <= pos.x && pos.x <= trail[i].x)){
+                            pos = lastPos;
+                        }
+                    }
+                    
+                }
+            }
+        }
         //lastDirection = direction;
         direction = nDirection;
     }
