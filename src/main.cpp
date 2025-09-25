@@ -446,6 +446,7 @@ struct sPath{
                             std::reverse(vTempPath.begin(),vTempPath.end());
                             for(float& node: vTempPath) node = node * -1;
                             origin = vNewPath.back();
+                            nNewCurrentNode = 0;
                         }
                         else{
                             vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
@@ -459,6 +460,7 @@ struct sPath{
                             for(float& node: vTempPath) node = node * -1;
                         }
                         origin = vNewPath.back();
+                        nNewCurrentNode = 0;
                     }
                     else if (vNewPath[0] == GetStartAbs(nArrival)){
                         vTempPath[nArrival-nDeparture-1] = vTempPath[nArrival-nDeparture-1] + vTempPath[nArrival-nDeparture+1];
@@ -486,6 +488,7 @@ struct sPath{
                         std::reverse(vTempPath.begin(),vTempPath.end());
                         for(float& node: vTempPath) node = node * -1;
                         origin = vNewPath.back();
+                        nNewCurrentNode = 0;
                     }
                     else{
                         vTempPath[nArrival-nDeparture] = vTempPath[0] + vTempPath[1];
@@ -503,6 +506,7 @@ struct sPath{
                     }
 
                     origin = vNewPath.back();
+                    nNewCurrentNode = 0;
                 }
                 else{
                     if(IsVertical(nDeparture)){
@@ -530,6 +534,7 @@ struct sPath{
                         vTempPath[0] = vTempPath.front() + vTempPath.back();
                         vTempPath.erase(vTempPath.end());
                         origin = vNewPath[1];
+                        nNewCurrentNode = nArrival - nDeparture - 1;
                     }
                     else{
                         std::reverse(vTempPath.begin(),vTempPath.end());
@@ -561,12 +566,10 @@ struct sPath{
                         vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
                         vTempPath.erase(vTempPath.end());
                         std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath){
-                            node = node * -1;
-                        }
+                        for(float& node: vTempPath) node = node * -1;
                         origin = vNewPath[1];
-                        nodes = vTempPath;
-                        return 0;
+                        nNewCurrentNode = vTempPath.size() - nArrival + nDeparture;
+
                     }
                     else if(vNewPath[0] == GetStartAbs(nDeparture)){
                         origin = vNewPath[0];
