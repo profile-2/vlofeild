@@ -310,6 +310,7 @@ struct sPath{
                 if(vNewPath[0].x == vNewPath[1].x){
                     vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]); // works only for !inverse, only  for departure 
                     vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+                    // nNewCurrentNode = nDeparture;
                 }
                 else if(vNewPath[0] == GetEndAbs(nArrival)){
                     vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
@@ -321,6 +322,7 @@ struct sPath{
                 if(vNewPath[0].y == vNewPath[1].y){
                     vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+                    // nNewCurrentNode = nDeparture;
                 }
                 else if(vNewPath[0] == GetEndAbs(nArrival)){
                     vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
@@ -328,30 +330,39 @@ struct sPath{
                     vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
                 }
             }
+            if((IsVertical(nDeparture) && IsVertical(nArrival)) || (!IsVertical(nDeparture) && !IsVertical(nArrival))){
+                // nNewCurrentNode = nDeparture;
+            }
+            nNewCurrentNode = nDeparture;
         }
         else{
             if(IsVertical(nDeparture)){
                 if(vNewPath[0].x == vNewPath[1].x){
-                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]); // works only for !inverse, only  for departure 
+                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+nDeparture+1);
+                    //nNewCurrentNode--;
                 }
                 else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
                     vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+nDeparture);
                     vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
+                    nNewCurrentNode--; // when departure from node start the new current node diminishes by two
                 }
             }
             else {
                 if(vNewPath[0].y == vNewPath[1].y){
                     vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+nDeparture+1);
+                    //nNewCurrentNode--;
                 }
                 else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
                     vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
                     vTempPath.erase(vTempPath.begin()+nDeparture);
                     vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
+                    nNewCurrentNode--; // when departure from node start the new current node diminishes by two
                 }
             }
+            nNewCurrentNode--;
         }
         // for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
         //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
@@ -372,10 +383,13 @@ struct sPath{
 
         if(count % 2){
             nodes = vTempPath;
-            
             return nNewCurrentNode;
         }
         else{
+            if(IsVertical(nDeparture)) nNewCurrentNode = vNewPath.size()-1;
+            else if(inverse) nNewCurrentNode = nDeparture;
+            else nNewCurrentNode = nArrival-nDeparture;
+            
             vTempPath.clear();
             
             arrivalStart = ModStart(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
@@ -462,6 +476,7 @@ struct sPath{
                             for(float& node: vTempPath) node = node * -1;
                         }
                         origin = vNewPath.back();
+                        nNewCurrentNode = 0;
                     }
                 }
                 else if (vNewPath[0].y == vNewPath[1].y){
@@ -490,11 +505,12 @@ struct sPath{
                     origin = vNewPath.back();
                 }
                 else{
-                    std::reverse(vTempPath.begin(),vTempPath.end());
-                    for(float& node: vTempPath){
-                        node = node * -1;
+                    if(IsVertical(nDeparture)){
+                        std::reverse(vTempPath.begin(),vTempPath.end());
+                        for(float& node: vTempPath) node = node * -1;
                     }
                     origin = vNewPath.back();
+                    nNewCurrentNode = 0;
                 }
             }
             else{
@@ -504,10 +520,10 @@ struct sPath{
                         vTempPath.erase(vTempPath.end());
                         //origin = vNewPath[1];
                         std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath){
-                            node = node * -1;
-                        }
+                        for(float& node: vTempPath) node = node * -1;
                         origin = vNewPath[1];
+                        nNewCurrentNode--;
+
                     }
                     else if(vNewPath[0] == GetEndAbs(nDeparture)){
                         vTempPath.erase(vTempPath.begin());
@@ -532,6 +548,7 @@ struct sPath{
                                 node = node * -1;
                             }
                             origin = vNewPath.front();
+                            nNewCurrentNode = vNewPath.size()-1;
                         }
                         else{
                             vTempPath[0] = vTempPath.front() + vTempPath.back();
@@ -559,17 +576,13 @@ struct sPath{
                     }
                 }
             }
-            
-            // for (int i = 0; i < vTempPath.size(); i++){
-                //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
-                // }
+
+            nodes = vTempPath;
+            return nNewCurrentNode;
         }
             
-        nodes = vTempPath;
 
-        if(IsVertical(nDeparture)) return vNewPath.size()-1;
-        if(inverse) return nDeparture;
-        return nArrival-nDeparture;
+        
     }
 };
 
