@@ -470,6 +470,17 @@ struct sPath{
                         origin = vNewPath.back();
                         nNewCurrentNode = 0;
                     }
+                    else if(vNewPath[0] == GetStartAbs(nArrival)){
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+
+                        origin = vNewPath.back();
+                    }
+                    else if(vNewPath[0] == GetEndAbs(nArrival)){
+                        vTempPath[nArrival-nDeparture] += vTempPath[nArrival-nDeparture+1];
+                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+
+                        origin = vNewPath.back();
+                    }
                     else{
                         vTempPath[nArrival-nDeparture] = vTempPath[0] + vTempPath[1];
                         vTempPath.erase(vTempPath.begin()+1);
@@ -633,24 +644,16 @@ public:
 
         if(!snapToLine && trail.size() > 1 && lastPos != trail.back()){
             for(int i = 0; i < trail.size() -1; i++){
-                if(trail[i].x == trail[i+1].x && pos.y == lastPos.y){
-                    if((pos.x <= trail[i].x && trail[i].x <= lastPos.x) || (lastPos.x <= trail[i].x && trail[i].x <= pos.x)){
-                        if((trail[i].y <= pos.y && pos.y <= trail[i+1].y) || (trail[i+1].y <= pos.y && pos.y <= trail[i].y)){
-                            pos = lastPos;
+                if((trail[i].x == trail[i+1].x && pos.y == lastPos.y) && 
+                    ((pos.x <= trail[i].x && trail[i].x <= lastPos.x) || (lastPos.x <= trail[i].x && trail[i].x <= pos.x)) &&
+                        ((trail[i].y <= pos.y && pos.y <= trail[i+1].y) || (trail[i+1].y <= pos.y && pos.y <= trail[i].y))){
+                            if(pos!=trail.back()) pos = lastPos;
                         }
-                    }
-                    /*trail[i:i+1] es vertical y pos:lastPos es horizontal y trail[i].x entre pos.x y lastPos.x y pos.y entre trail[i].y y trail[i+1].y*/ /* o */
-                    /*trail[i:i+1] es horizontal y pos:lastPos es vertical y trail[i].y entre pos.y y lastPos.y y pos.x entre trail[i].x y trail[i+1].x*/
-
-                }
-                else if(trail[i].y == trail[i+1].y && pos.x == lastPos.x){
-                    if((pos.y <= trail[i].y && trail[i].y <= lastPos.y) || (lastPos.y <= trail[i].y && trail[i].y <= pos.y)){
-                        if((trail[i].x <= pos.x && pos.x <= trail[i+1].x) || (trail[i+1].x <= pos.x && pos.x <= trail[i].x)){
-                            pos = lastPos;
+                else if((trail[i].y == trail[i+1].y && pos.x == lastPos.x) &&
+                    ((pos.y <= trail[i].y && trail[i].y <= lastPos.y) || (lastPos.y <= trail[i].y && trail[i].y <= pos.y)) &&
+                        ((trail[i].x <= pos.x && pos.x <= trail[i+1].x) || (trail[i+1].x <= pos.x && pos.x <= trail[i].x))){
+                            if(pos!=trail.back()) pos = lastPos;
                         }
-                    }
-                    
-                }
             }
         }
         //lastDirection = direction;
@@ -843,6 +846,7 @@ public:
     bool OnUserUpdate(float fElapsedTime){
         Clear(olc::BLANK);
         int direction = DIR_UNDEFINED;
+        olc::vf2d lastPosSnapped = olc::vf2d();
 
         if(GetKey(olc::Key::UP).bHeld) direction = DIR_UP;
         else if(GetKey(olc::Key::DOWN).bHeld) direction = DIR_DOWN;
@@ -856,6 +860,7 @@ public:
                 path.currentNode = -1;
                 ship.ClearTrail();
                 ship.AddTrail(ship.GetPos()); // add departure coord
+                lastPosSnapped = ship.GetPos();
             }
 
             if(ship.GetPos() == vfCurrEnd && direction == nCurrEndDir){
@@ -876,7 +881,7 @@ public:
 
             ship.Move(direction, fElapsedTime * 75);
 
-            if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bHeld){
+            if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bPressed){//lastPosSnapped != ship.GetPos() && lastPosSnapped != ship.GetLastPos()){//!GetKey(olc::Key::SPACE).bHeld){
                 int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
