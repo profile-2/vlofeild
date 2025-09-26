@@ -31,126 +31,36 @@ recursive division of areas to check inner area, checking vertices with raytraci
 
 #pragma region sPath
 struct sPath{
-    std::vector<float> nodes;
+    std::vector<olc::vf2d> nodes;
     int currentNode;
-    olc::vf2d origin;
 
-    sPath(olc::vf2d originPos): origin(originPos){
+    sPath(olc::vf2d originPos){
+        nodes.emplace_back(originPos);
         currentNode = 0;
     }
 
-    bool IsVertical(int node) { return node % 2; }
-    bool IsVertical() { return currentNode % 2; }
-
-    olc::vf2d GetEnd(int node) { 
-        if(node < nodes.size())
-            return IsVertical(node) ? olc::vf2d(0,nodes[node]) : olc::vf2d(nodes[node],0); 
-        else
-            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
+    int Next(int node){
+        if(node == nodes.size()-1) return 0;
+        return node+1;
+    }
+    int Prev(int node){
+        if(node == 0) return nodes.size()-1;
+        return node-1;
     }
 
-    olc::vf2d GetEnd() { return GetEnd(currentNode);}
-
-    olc::vf2d GetEnd2(const std::vector<float>& vNodes, int node){
-        if(node < vNodes.size()){
-            return IsVertical(node) ? olc::vf2d(0,vNodes[node]) : olc::vf2d(vNodes[node],0);
-        }
-        else
-            return olc::vf2d();
-    }
-
-    void AddNode(std::vector<float>& vNodes, olc::vf2d vfPointA, olc::vf2d vfPointB){ // not used?
-        bool vertical = vfPointA.x == vfPointB.x;
-        // if(vertical && vNodes.empty()) vNodes.push_back(0);
-        if(vertical) vNodes.push_back(vfPointB.y - vfPointA.y);
-        else vNodes.push_back(vfPointB.x - vfPointA.x);
-    }
-
-    void AddNode(olc::vf2d vfPointA, olc::vf2d vfPointB){ // not used?
-        bool vertical = vfPointA.x == vfPointB.x;
-        if(vertical && nodes.empty()) nodes.push_back(0);
-        if(vertical) nodes.push_back(vfPointB.y - vfPointA.y);
-        else nodes.push_back(vfPointB.x - vfPointA.x);
-    }
-
-    float CalcPath(olc::vf2d vfPointA, olc::vf2d vfPointB){
-        bool vertical = vfPointA.x == vfPointB.x;
-        if(vertical) return (vfPointB.y - vfPointA.y);
-        else return (vfPointB.x - vfPointA.x);
-    }
-
-
-    float ModEnd(int nNode, const olc::vf2d& vfNewEnd){ 
-        if(nNode < nodes.size()){
-            olc::vf2d start = GetStartAbs(nNode);
-            if(IsVertical(nNode)) return vfNewEnd.y - start.y;
-            else return vfNewEnd.x - start.x;
-        }
-        return 0;
-    }
-
-    float ModStart(int nNode, const olc::vf2d& vfNewStart){
-        if(nNode < nodes.size()){
-            olc::vf2d end = GetEndAbs(nNode);
-            if(IsVertical(nNode)) return end.y - vfNewStart.y;
-            else return end.x - vfNewStart.x;
-        }
-        return 0;
-    }
-
-    olc::vf2d GetStartAbs(int node){
-        if(node == 0){
-            return origin;
-        }
-        else if(node < nodes.size()){
-            olc::vf2d coord = origin;
-            for(int i = 0; i < node; i++){
-                coord = coord + GetEnd(i);
-            }
-            return coord;
-        }
-        else 
-            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
-    }
-    olc::vf2d GetStartAbs(){
-        return GetStartAbs(currentNode);
-    }
-
-    olc::vf2d GetEndAbs(int node){
-        if(node < nodes.size()){
-            olc::vf2d coord = origin;
-            for(int i = 0; i <= node; i++){
-                coord = coord + GetEnd(i);
-            }
-            return coord;
-        }
-        else
-            return origin; //olc::vf2d(); //temporal fix, revert to vf2d() to check for incorrect line snapping
-    }
-    olc::vf2d GetEndAbs(){
-        return GetEndAbs(currentNode);
-    }
-
-    void GetPoints(std::vector<olc::vf2d>& ends, const int& node){
-        ends.clear();
-        ends.emplace_back(GetStartAbs(node));
-        ends.emplace_back(GetEndAbs(node));
-    }
-    void GetPoints(std::vector<olc::vf2d>& ends){
-        GetPoints(ends, currentNode);
-    }
+    bool IsVertical(int node) { return nodes[node].x == nodes[Next(node)].x; }
+    bool IsVertical() { return IsVertical(currentNode); }
 
     int GetStartExit(int node){
-        int prevNode = node == 0 ? nodes.size()-1 : node-1;
 
         if(IsVertical(node)){
-            if (nodes[prevNode] < 0)
+            if (nodes[Prev(node)].x >= nodes[node].x)
                 return DIR_RIGHT;
             else
                 return DIR_LEFT;
         }
         else{
-            if (nodes[prevNode] < 0)
+            if (nodes[Prev(node)].y >= nodes[node].y)
                 return DIR_DOWN;
             else
                 return DIR_UP;
@@ -159,15 +69,14 @@ struct sPath{
     }
 
     int GetEndExit(int node){
-        int nextNode = node == nodes.size()-1 ? 0 : node+1;
         if(IsVertical(node)){
-            if (nodes[nextNode] < 0)
+            if (nodes[Next(node)].x >= nodes[Next(Next(node))].x)
                 return DIR_LEFT;
             else
                 return DIR_RIGHT;
         }
         else{
-            if (nodes[nextNode] < 0)
+            if (nodes[Next(node)].y >= nodes[Next(Next(node))].y)
                 return DIR_UP;
             else
                 return DIR_DOWN;
@@ -198,14 +107,14 @@ struct sPath{
         return false;
     }
     bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B){
-        return DoesIntersect(node, point1A, point1B, GetStartAbs(node), GetEndAbs(node));
+        return DoesIntersect(node, point1A, point1B, nodes[node], nodes[Next(node)]);
     }
 
     int NodesIntersect(olc::vf2d point1A, olc::vf2d point1B){
-        olc::vf2d point2A = origin;
+        olc::vf2d point2A = nodes[0];
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
-            point2B = GetEnd(i) + point2A;
+            point2B = nodes[Next(i)];
             if(DoesIntersect(i, point1A, point1B, point2A, point2B))
                 return i;
             point2A = point2B;
@@ -215,10 +124,10 @@ struct sPath{
 
     int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B){
         int count = 0;
-        olc::vf2d point2A = origin;
+        olc::vf2d point2A = nodes[0];
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
-            point2B = GetEnd(i) + point2A;
+            point2B = nodes[Next(i)];
             if(DoesIntersect(i, point1A, point1B, point2A, point2B))
                 count++;
             point2A = point2B;
@@ -227,11 +136,11 @@ struct sPath{
     }
 
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
-        pge.DrawLine(GetStartAbs(node), GetEndAbs(node), color);
+        pge.DrawLine(nodes[node], nodes[Next(node)], color);
     }
 
     void DrawAll(olc::PixelGameEngine& pge, olc::Pixel color = olc::WHITE){
-        for(int i = 0; i <= nodes.size(); i++){
+        for(int i = 0; i < nodes.size(); i++){
             Draw(pge, i, color);
         }
     }
@@ -245,9 +154,10 @@ struct sPath{
             case DIR_RIGHT: { rayPos = olc::vf2d(SCREEN_WIDTH, vfPos.y); break; }
         }
         int count = NodesIntersectCount(vfPos,rayPos);
-        if((nDir == DIR_RIGHT || nDir == DIR_DOWN) && (vfPos == GetEndAbs(nNode) || vfPos == GetStartAbs(nNode)) && count > 2){
-            return count % 2 == 1;
-        }
+        // if((nDir == DIR_RIGHT || nDir == DIR_DOWN) && (vfPos == GetEndAbs(nNode) || vfPos == GetStartAbs(nNode)) && count > 2){
+        //     return count % 2 == 1;
+        // }
+        if((vfPos == nodes[nNode] || vfPos == nodes[Next(nNode)]) && (nDir == DIR_RIGHT || nDir == DIR_DOWN)) return count % 2 == 1;
         return count % 2 == 0;
     }
 
@@ -257,324 +167,324 @@ struct sPath{
         return count % 2 == 0;
     }
 
-    int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath, const olc::vf2d& vfTarget){
-        bool inverse =  (nDeparture > nArrival) || 
-                        (nDeparture == nArrival && nodes[nDeparture] > 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0])) ||
-                        (nDeparture == nArrival && nodes[nDeparture] < 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) > CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
-        if (inverse){
-            int temp = nArrival;
-            nArrival = nDeparture;
-            nDeparture = temp;
-        }
-        std::vector<float> vTempPath;
-        int nNewCurrentNode = inverse ? nArrival : nDeparture+vNewPath.size();
+    // int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath, const olc::vf2d& vfTarget){
+    //     bool inverse =  (nDeparture > nArrival) || 
+    //                     (nDeparture == nArrival && nodes[nDeparture] > 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) < CalcPath(GetEndAbs(nDeparture),vNewPath[0])) ||
+    //                     (nDeparture == nArrival && nodes[nDeparture] < 0 && CalcPath(GetEndAbs(nDeparture),vNewPath.back()) > CalcPath(GetEndAbs(nDeparture),vNewPath[0]));
+    //     if (inverse){
+    //         int temp = nArrival;
+    //         nArrival = nDeparture;
+    //         nDeparture = temp;
+    //     }
+    //     std::vector<float> vTempPath;
+    //     int nNewCurrentNode = inverse ? nArrival : nDeparture+vNewPath.size();
 
-        float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
-        float arrivalStart = ModStart(nArrival, inverse ? vNewPath.front() : vNewPath.back());
+    //     float departureEnd = ModEnd(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
+    //     float arrivalStart = ModStart(nArrival, inverse ? vNewPath.front() : vNewPath.back());
 
-        for(int i = 0; i < nodes.size(); i++){
-            if(i < nDeparture){
-                vTempPath.push_back(nodes[i]);
-            }
-            else if (i == nDeparture){
-                vTempPath.push_back(departureEnd);
+    //     for(int i = 0; i < nodes.size(); i++){
+    //         if(i < nDeparture){
+    //             vTempPath.push_back(nodes[i]);
+    //         }
+    //         else if (i == nDeparture){
+    //             vTempPath.push_back(departureEnd);
 
-                if(inverse){
-                    for(int j = vNewPath.size()-1; j > 0; j--)
-                        vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j-1]));
-                }
-                else{
-                    for(int j = 0; j < vNewPath.size()-1; j++)
-                        vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+1]));
-                }
+    //             if(inverse){
+    //                 for(int j = vNewPath.size()-1; j > 0; j--)
+    //                     vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j-1]));
+    //             }
+    //             else{
+    //                 for(int j = 0; j < vNewPath.size()-1; j++)
+    //                     vTempPath.push_back(CalcPath(vNewPath[j], vNewPath[j+1]));
+    //             }
 
-                if(nDeparture == nArrival){
-                    vTempPath.push_back(arrivalStart);
-                }
-            }
-            else if (i == nArrival){
-                vTempPath.push_back(arrivalStart);
-            }
-            else if (i > nArrival){
-                vTempPath.push_back(nodes[i]);
-            }
-        }
+    //             if(nDeparture == nArrival){
+    //                 vTempPath.push_back(arrivalStart);
+    //             }
+    //         }
+    //         else if (i == nArrival){
+    //             vTempPath.push_back(arrivalStart);
+    //         }
+    //         else if (i > nArrival){
+    //             vTempPath.push_back(nodes[i]);
+    //         }
+    //     }
 
-        // if first node to be grafted is co-linear with departure node
-        if(inverse){
-            if(IsVertical(nArrival)){
-                if(vNewPath[0].x == vNewPath[1].x){
-                    vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]); // works only for !inverse, only  for departure 
-                    vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
-                    // nNewCurrentNode = nDeparture;
-                }
-                else if(vNewPath[0] == GetEndAbs(nArrival)){
-                    vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
-                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
-                }
-            }
-            else {
-                if(vNewPath[0].y == vNewPath[1].y){
-                    vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
-                    // nNewCurrentNode = nDeparture;
-                }
-                else if(vNewPath[0] == GetEndAbs(nArrival)){
-                    vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
-                    vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
-                }
-            }
-            if((IsVertical(nDeparture) && IsVertical(nArrival)) || (!IsVertical(nDeparture) && !IsVertical(nArrival))){
-                // nNewCurrentNode = nDeparture;
-            }
-            nNewCurrentNode = nDeparture;
-        }
-        else{
-            if(IsVertical(nDeparture)){
-                if(vNewPath[0].x == vNewPath[1].x){
-                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture+1);
-                    //nNewCurrentNode--;
-                }
-                else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
-                    vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture);
-                    vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
-                    nNewCurrentNode--; // when departure from node start the new current node diminishes by two
-                }
-            }
-            else {
-                if(vNewPath[0].y == vNewPath[1].y){
-                    vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture+1);
-                    //nNewCurrentNode--;
-                }
-                else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
-                    vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
-                    vTempPath.erase(vTempPath.begin()+nDeparture);
-                    vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
-                    nNewCurrentNode--; // when departure from node start the new current node diminishes by two
-                }
-            }
-            nNewCurrentNode--;
-        }
-        // for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
-        //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
-        // }
+    //     // if first node to be grafted is co-linear with departure node
+    //     if(inverse){
+    //         if(IsVertical(nArrival)){
+    //             if(vNewPath[0].x == vNewPath[1].x){
+    //                 vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]); // works only for !inverse, only  for departure 
+    //                 vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+    //                 // nNewCurrentNode = nDeparture;
+    //             }
+    //             else if(vNewPath[0] == GetEndAbs(nArrival)){
+    //                 vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
+    //             }
+    //         }
+    //         else {
+    //             if(vNewPath[0].y == vNewPath[1].y){
+    //                 vTempPath[vNewPath.size()+nDeparture] = ModStart(nArrival, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+vNewPath.size()+nDeparture-1);
+    //                 // nNewCurrentNode = nDeparture;
+    //             }
+    //             else if(vNewPath[0] == GetEndAbs(nArrival)){
+    //                 vTempPath[nDeparture+vNewPath.size()+1] = ModStart(nArrival+1, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size()-1);
+    //             }
+    //         }
+    //         if((IsVertical(nDeparture) && IsVertical(nArrival)) || (!IsVertical(nDeparture) && !IsVertical(nArrival))){
+    //             // nNewCurrentNode = nDeparture;
+    //         }
+    //         nNewCurrentNode = nDeparture;
+    //     }
+    //     else{
+    //         if(IsVertical(nDeparture)){
+    //             if(vNewPath[0].x == vNewPath[1].x){
+    //                 vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+1);
+    //                 //nNewCurrentNode--;
+    //             }
+    //             else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
+    //                 vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
+    //                 nNewCurrentNode--; // when departure from node start the new current node diminishes by two
+    //             }
+    //         }
+    //         else {
+    //             if(vNewPath[0].y == vNewPath[1].y){
+    //                 vTempPath[nDeparture] = ModEnd(nDeparture, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture+1);
+    //                 //nNewCurrentNode--;
+    //             }
+    //             else if(vNewPath[0] == GetStartAbs(nDeparture)){// perpendicular departure from inner corner
+    //                 vTempPath[nDeparture-1] = ModEnd(nDeparture-1, vNewPath[1]);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture);
+    //                 vTempPath.erase(vTempPath.begin()+nDeparture); // deletes nDeparture and nDeparture+1
+    //                 nNewCurrentNode--; // when departure from node start the new current node diminishes by two
+    //             }
+    //         }
+    //         nNewCurrentNode--;
+    //     }
+    //     // for (int i = 0; i < vTempPath.size(); i++){ // clearing 0 lenght nodes
+    //     //     if(vTempPath[i] == 0) vTempPath.erase(vTempPath.begin()+i);
+    //     // }
 
-        //check if target is inside
-        int count = 0;
-        olc::vf2d point2A = origin;
-        olc::vf2d point2B;
-        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
-        for(int i=0; i < vTempPath.size(); i++){
-            point2B = GetEnd2(vTempPath, i) + point2A;
-            if(DoesIntersect(i, vfTarget, raycast, point2A, point2B))
-                count++;
-            point2A = point2B;
-        }
+    //     //check if target is inside
+    //     int count = 0;
+    //     olc::vf2d point2A = origin;
+    //     olc::vf2d point2B;
+    //     olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+    //     for(int i=0; i < vTempPath.size(); i++){
+    //         point2B = GetEnd2(vTempPath, i) + point2A;
+    //         if(DoesIntersect(i, vfTarget, raycast, point2A, point2B))
+    //             count++;
+    //         point2A = point2B;
+    //     }
 
 
-        if(count % 2 == 0){
-            if(IsVertical(nDeparture)) nNewCurrentNode = vNewPath.size()-1;
-            else if(inverse) nNewCurrentNode = nDeparture;
-            else nNewCurrentNode = nArrival-nDeparture;
+    //     if(count % 2 == 0){
+    //         if(IsVertical(nDeparture)) nNewCurrentNode = vNewPath.size()-1;
+    //         else if(inverse) nNewCurrentNode = nDeparture;
+    //         else nNewCurrentNode = nArrival-nDeparture;
             
-            vTempPath.clear();
+    //         vTempPath.clear();
             
-            arrivalStart = ModStart(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
-            departureEnd = ModEnd(nArrival, inverse ? vNewPath.front() : vNewPath.back());
+    //         arrivalStart = ModStart(nDeparture, inverse ? vNewPath.back() : vNewPath.front());
+    //         departureEnd = ModEnd(nArrival, inverse ? vNewPath.front() : vNewPath.back());
             
-            if(nArrival == nDeparture){
-                if(!inverse)
-                    arrivalStart = ModEnd(nArrival, vNewPath.back()) - ModEnd(nArrival, vNewPath.front());
-                else
-                    arrivalStart = ModEnd(nArrival, vNewPath.front()) - ModEnd(nArrival, vNewPath.back());
-            }
+    //         if(nArrival == nDeparture){
+    //             if(!inverse)
+    //                 arrivalStart = ModEnd(nArrival, vNewPath.back()) - ModEnd(nArrival, vNewPath.front());
+    //             else
+    //                 arrivalStart = ModEnd(nArrival, vNewPath.front()) - ModEnd(nArrival, vNewPath.back());
+    //         }
 
-            vTempPath.emplace_back(arrivalStart);
+    //         vTempPath.emplace_back(arrivalStart);
             
-            if(nArrival!=nDeparture){
-                int oldNodes = nArrival - nDeparture - 1;
-                if(oldNodes > 0){
-                    for(int i = 0; i < oldNodes; i++){
-                        vTempPath.emplace_back(nodes[i+nDeparture+1]);
-                    }
-                }
+    //         if(nArrival!=nDeparture){
+    //             int oldNodes = nArrival - nDeparture - 1;
+    //             if(oldNodes > 0){
+    //                 for(int i = 0; i < oldNodes; i++){
+    //                     vTempPath.emplace_back(nodes[i+nDeparture+1]);
+    //                 }
+    //             }
                 
-                vTempPath.emplace_back(departureEnd);
-            }
+    //             vTempPath.emplace_back(departureEnd);
+    //         }
 
-            if(inverse){
-                for(int i = 0; i < vNewPath.size()-1; i++)
-                    vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+1])); 
-            }
-            else{
-                for(int i = vNewPath.size()-1; i > 0; i--)
-                    vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i-1])); 
-            }
+    //         if(inverse){
+    //             for(int i = 0; i < vNewPath.size()-1; i++)
+    //                 vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i+1])); 
+    //         }
+    //         else{
+    //             for(int i = vNewPath.size()-1; i > 0; i--)
+    //                 vTempPath.push_back(CalcPath(vNewPath[i], vNewPath[i-1])); 
+    //         }
 
-            // EDGE CASE  - Departure from internal corner. This is a mess.
-            if(inverse){
-                if(IsVertical(nArrival)){
-                    if(vNewPath[0].x == vNewPath[1].x){
-                        if(IsVertical(nDeparture)){
-                            vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
-                            vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
-                            std::reverse(vTempPath.begin(),vTempPath.end());
-                            for(float& node: vTempPath) node = node * -1;
-                            origin = vNewPath.back();
-                            nNewCurrentNode = 0;
-                        }
-                        else{
-                            vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
-                            vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
-                            origin = vNewPath.back();
-                        }
-                    }
-                    else if (vNewPath[0] == GetEndAbs(nArrival)){
-                        if(IsVertical(nDeparture)){
-                            std::reverse(vTempPath.begin(),vTempPath.end());
-                            for(float& node: vTempPath) node = node * -1;
-                        }
-                        origin = vNewPath.back();
-                        nNewCurrentNode = 0;
-                    }
-                    else if (vNewPath[0] == GetStartAbs(nArrival)){
-                        vTempPath[nArrival-nDeparture-1] = vTempPath[nArrival-nDeparture-1] + vTempPath[nArrival-nDeparture+1];
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
-                        if(IsVertical(nDeparture)){
-                            std::reverse(vTempPath.begin(),vTempPath.end());
-                            for(float& node: vTempPath) node = node * -1;
-                        }
-                        origin = vNewPath.back();
-                    }
-                    else{
-                        if(IsVertical(nDeparture)){
-                            std::reverse(vTempPath.begin(),vTempPath.end());
-                            for(float& node: vTempPath) node = node * -1;
-                        }
-                        origin = vNewPath.back();
-                        nNewCurrentNode = 0;
-                    }
-                }
-                else if (vNewPath[0].y == vNewPath[1].y){
-                    if(IsVertical(nDeparture)){
-                        vTempPath[nArrival-nDeparture] = CalcPath(GetStartAbs(nArrival-nDeparture), vNewPath[1]);
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath) node = node * -1;
-                        origin = vNewPath.back();
-                        nNewCurrentNode = 0;
-                    }
-                    else if(vNewPath[0] == GetStartAbs(nArrival)){
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+    //         // EDGE CASE  - Departure from internal corner. This is a mess.
+    //         if(inverse){
+    //             if(IsVertical(nArrival)){
+    //                 if(vNewPath[0].x == vNewPath[1].x){
+    //                     if(IsVertical(nDeparture)){
+    //                         vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
+    //                         vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+    //                         std::reverse(vTempPath.begin(),vTempPath.end());
+    //                         for(float& node: vTempPath) node = node * -1;
+    //                         origin = vNewPath.back();
+    //                         nNewCurrentNode = 0;
+    //                     }
+    //                     else{
+    //                         vTempPath[nArrival-nDeparture] = vTempPath[nArrival-nDeparture] + vTempPath[nArrival-nDeparture+1];
+    //                         vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+    //                         origin = vNewPath.back();
+    //                     }
+    //                 }
+    //                 else if (vNewPath[0] == GetEndAbs(nArrival)){
+    //                     if(IsVertical(nDeparture)){
+    //                         std::reverse(vTempPath.begin(),vTempPath.end());
+    //                         for(float& node: vTempPath) node = node * -1;
+    //                     }
+    //                     origin = vNewPath.back();
+    //                     nNewCurrentNode = 0;
+    //                 }
+    //                 else if (vNewPath[0] == GetStartAbs(nArrival)){
+    //                     vTempPath[nArrival-nDeparture-1] = vTempPath[nArrival-nDeparture-1] + vTempPath[nArrival-nDeparture+1];
+    //                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+    //                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+    //                     if(IsVertical(nDeparture)){
+    //                         std::reverse(vTempPath.begin(),vTempPath.end());
+    //                         for(float& node: vTempPath) node = node * -1;
+    //                     }
+    //                     origin = vNewPath.back();
+    //                 }
+    //                 else{
+    //                     if(IsVertical(nDeparture)){
+    //                         std::reverse(vTempPath.begin(),vTempPath.end());
+    //                         for(float& node: vTempPath) node = node * -1;
+    //                     }
+    //                     origin = vNewPath.back();
+    //                     nNewCurrentNode = 0;
+    //                 }
+    //             }
+    //             else if (vNewPath[0].y == vNewPath[1].y){
+    //                 if(IsVertical(nDeparture)){
+    //                     vTempPath[nArrival-nDeparture] = CalcPath(GetStartAbs(nArrival-nDeparture), vNewPath[1]);
+    //                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath) node = node * -1;
+    //                     origin = vNewPath.back();
+    //                     nNewCurrentNode = 0;
+    //                 }
+    //                 else if(vNewPath[0] == GetStartAbs(nArrival)){
+    //                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
 
-                        origin = vNewPath.back();
-                    }
-                    else if(vNewPath[0] == GetEndAbs(nArrival)){
-                        vTempPath[nArrival-nDeparture] += vTempPath[nArrival-nDeparture+1];
-                        vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
+    //                     origin = vNewPath.back();
+    //                 }
+    //                 else if(vNewPath[0] == GetEndAbs(nArrival)){
+    //                     vTempPath[nArrival-nDeparture] += vTempPath[nArrival-nDeparture+1];
+    //                     vTempPath.erase(vTempPath.begin()+nArrival-nDeparture+1);
 
-                        origin = vNewPath.back();
-                    }
-                    else{
-                        vTempPath[nArrival-nDeparture] = vTempPath[0] + vTempPath[1];
-                        vTempPath.erase(vTempPath.begin()+1);
-                        origin = vNewPath.back();
-                    }
-                }
-                else if(vNewPath[0] == GetStartAbs(nArrival)){
-                    vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
-                    vTempPath[nArrival-nDeparture-1] += vTempPath[nArrival-nDeparture];
-                    vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
-                    if(IsVertical(nDeparture)){
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath) node = node * -1;
-                    }
+    //                     origin = vNewPath.back();
+    //                 }
+    //                 else{
+    //                     vTempPath[nArrival-nDeparture] = vTempPath[0] + vTempPath[1];
+    //                     vTempPath.erase(vTempPath.begin()+1);
+    //                     origin = vNewPath.back();
+    //                 }
+    //             }
+    //             else if(vNewPath[0] == GetStartAbs(nArrival)){
+    //                 vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+    //                 vTempPath[nArrival-nDeparture-1] += vTempPath[nArrival-nDeparture];
+    //                 vTempPath.erase(vTempPath.begin()+nArrival-nDeparture);
+    //                 if(IsVertical(nDeparture)){
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath) node = node * -1;
+    //                 }
 
-                    origin = vNewPath.back();
-                    nNewCurrentNode = 0;
-                }
-                else{
-                    if(IsVertical(nDeparture)){
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath) node = node * -1;
-                    }
-                    origin = vNewPath.back();
-                    nNewCurrentNode = 0;
-                }
-            }
-            else{
-                if(IsVertical(nDeparture)){
-                    if(vNewPath[0].x == vNewPath[1].x){
-                        vTempPath[0] = vTempPath.front() + vTempPath.back();
-                        vTempPath.erase(vTempPath.end());
-                        //origin = vNewPath[1];
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath) node = node * -1;
-                        origin = vNewPath[1];
-                        nNewCurrentNode--;
+    //                 origin = vNewPath.back();
+    //                 nNewCurrentNode = 0;
+    //             }
+    //             else{
+    //                 if(IsVertical(nDeparture)){
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath) node = node * -1;
+    //                 }
+    //                 origin = vNewPath.back();
+    //                 nNewCurrentNode = 0;
+    //             }
+    //         }
+    //         else{
+    //             if(IsVertical(nDeparture)){
+    //                 if(vNewPath[0].x == vNewPath[1].x){
+    //                     vTempPath[0] = vTempPath.front() + vTempPath.back();
+    //                     vTempPath.erase(vTempPath.end());
+    //                     //origin = vNewPath[1];
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath) node = node * -1;
+    //                     origin = vNewPath[1];
+    //                     nNewCurrentNode--;
 
-                    }
-                    else if(vNewPath[0] == GetEndAbs(nDeparture)){
-                        vTempPath.erase(vTempPath.begin());
-                        vTempPath[0] = vTempPath.front() + vTempPath.back();
-                        vTempPath.erase(vTempPath.end());
-                        origin = vNewPath[1];
-                        nNewCurrentNode = nArrival - nDeparture - 1;
-                    }
-                    else{
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath){
-                            node = node * -1;
-                        }
-                        origin = vNewPath.front();
-                    }
-                }
-                else{
-                    if(vNewPath[0].y == vNewPath[1].y){
-                        if(vNewPath[0] == GetEndAbs(nDeparture)){
-                            vTempPath.erase(vTempPath.begin());
-                            std::reverse(vTempPath.begin(),vTempPath.end());
-                            for(float& node: vTempPath){
-                                node = node * -1;
-                            }
-                            origin = vNewPath.front();
-                            nNewCurrentNode = vNewPath.size()-1;
-                        }
-                        else{
-                            vTempPath[0] = vTempPath.front() + vTempPath.back();
-                            vTempPath.erase(vTempPath.end());
-                            origin = vNewPath[1];
-                        }
-                    }
-                    else if(vNewPath[0] == GetEndAbs(nDeparture)){
-                        vTempPath.erase(vTempPath.begin());
-                        vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
-                        vTempPath.erase(vTempPath.end());
-                        std::reverse(vTempPath.begin(),vTempPath.end());
-                        for(float& node: vTempPath) node = node * -1;
-                        origin = vNewPath[1];
-                        nNewCurrentNode = vTempPath.size() - nArrival + nDeparture;
+    //                 }
+    //                 else if(vNewPath[0] == GetEndAbs(nDeparture)){
+    //                     vTempPath.erase(vTempPath.begin());
+    //                     vTempPath[0] = vTempPath.front() + vTempPath.back();
+    //                     vTempPath.erase(vTempPath.end());
+    //                     origin = vNewPath[1];
+    //                     nNewCurrentNode = nArrival - nDeparture - 1;
+    //                 }
+    //                 else{
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath){
+    //                         node = node * -1;
+    //                     }
+    //                     origin = vNewPath.front();
+    //                 }
+    //             }
+    //             else{
+    //                 if(vNewPath[0].y == vNewPath[1].y){
+    //                     if(vNewPath[0] == GetEndAbs(nDeparture)){
+    //                         vTempPath.erase(vTempPath.begin());
+    //                         std::reverse(vTempPath.begin(),vTempPath.end());
+    //                         for(float& node: vTempPath){
+    //                             node = node * -1;
+    //                         }
+    //                         origin = vNewPath.front();
+    //                         nNewCurrentNode = vNewPath.size()-1;
+    //                     }
+    //                     else{
+    //                         vTempPath[0] = vTempPath.front() + vTempPath.back();
+    //                         vTempPath.erase(vTempPath.end());
+    //                         origin = vNewPath[1];
+    //                     }
+    //                 }
+    //                 else if(vNewPath[0] == GetEndAbs(nDeparture)){
+    //                     vTempPath.erase(vTempPath.begin());
+    //                     vTempPath[0] = CalcPath(vNewPath[1], GetEndAbs(nDeparture+1));
+    //                     vTempPath.erase(vTempPath.end());
+    //                     std::reverse(vTempPath.begin(),vTempPath.end());
+    //                     for(float& node: vTempPath) node = node * -1;
+    //                     origin = vNewPath[1];
+    //                     nNewCurrentNode = vTempPath.size() - nArrival + nDeparture;
 
-                    }
-                    else if(vNewPath[0] == GetStartAbs(nDeparture)){
-                        origin = vNewPath[0];
-                    }
-                    else{
-                        origin = vNewPath.front();
-                    }
-                }
-            }
+    //                 }
+    //                 else if(vNewPath[0] == GetStartAbs(nDeparture)){
+    //                     origin = vNewPath[0];
+    //                 }
+    //                 else{
+    //                     origin = vNewPath.front();
+    //                 }
+    //             }
+    //         }
 
-        }
-        nodes = vTempPath;
-        return nNewCurrentNode;
-    }
+    //     }
+    //     nodes = vTempPath;
+    //     return nNewCurrentNode;
+    // }
 };
 
 #pragma region cShip
@@ -799,15 +709,15 @@ public:
     }
 
     bool SnapShipToLine(int line){
-        ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line));
+        ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line));
         if (ship.GetPos() != olc::vf2d()) return true;
         else return false;
     }
 
     bool PathUpdate(int nNode){
         if(nNode < path.nodes.size()){
-            vfCurrStart = path.GetStartAbs(nNode);
-            vfCurrEnd = path.GetEndAbs(nNode);
+            vfCurrStart = path.nodes[nNode];
+            vfCurrEnd = path.nodes[path.Next(nNode)];
             nCurrStrDir = path.GetStartExit(nNode);
             nCurrEndDir = path.GetEndExit(nNode);
             return true;
@@ -817,12 +727,23 @@ public:
 
     void ResetField(){
         int initialNode = 0;
-        path.origin = olc::vf2d(fFieldMarginLeft,fFieldMarginTop);
         path.nodes.clear();
-        path.nodes.push_back(fFieldMarginRight-fFieldMarginLeft);
-        path.nodes.push_back(fFieldMarginBottom-fFieldMarginTop);
-        path.nodes.push_back(-fFieldMarginRight+fFieldMarginLeft);
-        path.nodes.push_back(-fFieldMarginBottom+fFieldMarginTop);
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft,fFieldMarginTop));
+
+        path.nodes.emplace_back(olc::vf2d(100,fFieldMarginTop));
+        path.nodes.emplace_back(olc::vf2d(100,50));
+        path.nodes.emplace_back(olc::vf2d(150,50));
+        path.nodes.emplace_back(olc::vf2d(150,fFieldMarginTop));
+
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginRight,fFieldMarginTop));
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginRight,fFieldMarginBottom));
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft,fFieldMarginBottom));
+
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft,fFieldMarginBottom-50));
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft+50,fFieldMarginBottom-50));
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft+50,fFieldMarginBottom-100));
+        path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft,fFieldMarginBottom-100));
+
         path.currentNode = 0;
         ship.SetDirection(DIR_UP);
         ship.SetLastDirection(DIR_UNDEFINED);
@@ -884,16 +805,17 @@ public:
             if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bPressed){//lastPosSnapped != ship.GetPos() && lastPosSnapped != ship.GetLastPos()){//!GetKey(olc::Key::SPACE).bHeld){
                 int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
-                    ship.SnapToLine(path.GetStartAbs(line), path.GetEndAbs(line), path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
+                    ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
                     if (nDeparture == line && ship.GetTrail().size() < 2){
                         path.currentNode = line;
                         PathUpdate(path.currentNode);
                     }
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
-                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
+                        //path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
+                        path.currentNode = line;
                         PathUpdate(path.currentNode);
-                        ship.SnapToLine(path.GetStartAbs(), path.GetEndAbs(), path.IsVertical());
+                        ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line));
                     }
                 }
             }
@@ -906,8 +828,8 @@ public:
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
 
         path.DrawAll(*this);
-        path.Draw(*this, path.currentNode, olc::GREEN);
-        DrawLine(path.origin, path.origin, olc::BLUE);
+        if(path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
+        DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
         ship.Draw(*this);
         DrawLine(vfTarget, vfTarget, olc::RED);
         DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
