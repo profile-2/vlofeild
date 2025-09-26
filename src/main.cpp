@@ -84,7 +84,7 @@ struct sPath{
         return DIR_UNDEFINED;
     }
 
-    bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B){
+    bool DoesIntersect(olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B){
         
         float point2AX = point2A.x < point2B.x ? point2A.x : point2B.x;
         float point2BX = point2A.x > point2B.x ? point2A.x : point2B.x;
@@ -96,7 +96,7 @@ struct sPath{
         float point1AY = point1A.y < point1B.y ? point1A.y : point1B.y;
         float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
 
-        if(IsVertical(node)){
+        if(point2AX == point2BX){ //vertical
             if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
                 return true;
         }
@@ -106,16 +106,16 @@ struct sPath{
         }
         return false;
     }
-    bool DoesIntersect(int node, olc::vf2d point1A, olc::vf2d point1B){
-        return DoesIntersect(node, point1A, point1B, nodes[node], nodes[Next(node)]);
-    }
+    // bool DoesIntersect(olc::vf2d point1A, olc::vf2d point1B){
+    //     return DoesIntersect(point1A, point1B, nodes[node], nodes[Next(node)]);
+    // }
 
     int NodesIntersect(olc::vf2d point1A, olc::vf2d point1B){
         olc::vf2d point2A = nodes[0];
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
             point2B = nodes[Next(i)];
-            if(DoesIntersect(i, point1A, point1B, point2A, point2B))
+            if(DoesIntersect(point1A, point1B, point2A, point2B))
                 return i;
             point2A = point2B;
         }
@@ -128,7 +128,7 @@ struct sPath{
         olc::vf2d point2B;
         for(int i=0; i < nodes.size(); i++){
             point2B = nodes[Next(i)];
-            if(DoesIntersect(i, point1A, point1B, point2A, point2B))
+            if(DoesIntersect(point1A, point1B, point2A, point2B))
                 count++;
             point2A = point2B;
         }
@@ -154,9 +154,6 @@ struct sPath{
             case DIR_RIGHT: { rayPos = olc::vf2d(SCREEN_WIDTH, vfPos.y); break; }
         }
         int count = NodesIntersectCount(vfPos,rayPos);
-        // if((nDir == DIR_RIGHT || nDir == DIR_DOWN) && (vfPos == GetEndAbs(nNode) || vfPos == GetStartAbs(nNode)) && count > 2){
-        //     return count % 2 == 1;
-        // }
         if((vfPos == nodes[nNode] || vfPos == nodes[Next(nNode)]) && (nDir == DIR_RIGHT || nDir == DIR_DOWN)) return count % 2 == 1;
         return count % 2 == 0;
     }
@@ -165,6 +162,85 @@ struct sPath{
         olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
         int count = NodesIntersectCount(vfTarget, raycast);
         return count % 2 == 0;
+    }
+
+    float CalcDistance(int nNode, const olc::vf2d& vfPoint){
+        if(nodes[nNode].x == vfPoint.x){ // vertical distance
+            return vfPoint.y - nodes[nNode].y;
+        }
+        if(nodes[nNode].y == vfPoint.y){
+            return vfPoint.x - nodes[nNode].x;
+        }
+        return 0; 
+    }
+
+    bool AreColinear(const olc::vf2d& pointA, const olc::vf2d& pointB, const olc::vf2d& pointC){
+        return (pointA.x == pointB.x && pointB.x == pointC.x) || (pointA.y == pointB.y && pointB.y == pointC.y); 
+    }
+
+    int GraftPath(int nDeparture, int nArrival, std::vector<olc::vf2d> vNewPath, const olc::vf2d& vfTarget){
+        bool inverse = (nDeparture > nArrival) ||
+                        (nDeparture == nArrival && std::abs(CalcDistance(nDeparture,vNewPath.back())) < std::abs(CalcDistance(nDeparture,vNewPath.front())));
+        std::vector<olc::vf2d> vTempPath;
+        int nNewCurrent = nArrival;
+
+        if(inverse) {
+            int temp = nDeparture;
+            nDeparture = nArrival;
+            nArrival = temp;
+            std::reverse(vNewPath.begin(), vNewPath.end());
+        }
+
+        for(int i = 0; i < nodes.size(); i++){
+            if(i < nDeparture){
+                vTempPath.emplace_back(nodes[i]);
+            }
+            else if(i == nDeparture){
+                vTempPath.emplace_back(nodes[i]);
+                for(int j = 0; j < vNewPath.size(); j++){
+                    vTempPath.emplace_back(vNewPath[j]);
+                }
+            }
+            else if(i > nArrival){
+                vTempPath.emplace_back(nodes[i]);
+            }
+        }
+
+        // Clearing unneeded nodes when departing from internal corners
+        if(!inverse && vNewPath[0] == nodes[Next(nDeparture)] && AreColinear(nodes[nDeparture],vNewPath[0],vNewPath[1]))
+            vTempPath.erase(vTempPath.begin()+Next(nDeparture));
+        if(!inverse && vNewPath[0] == nodes[nDeparture]){
+            vTempPath.erase(vTempPath.begin()+nDeparture);
+            if(!AreColinear(nodes[Next(nDeparture)],vNewPath[0],vNewPath[1]))
+                vTempPath.erase(vTempPath.begin()+nDeparture); // eliminate second node
+        }
+
+        int count = 0;
+        olc::vf2d point1 = vTempPath[0];
+        olc::vf2d point2;
+        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+        for(int i=0; i < vTempPath.size(); i++){
+            point2 = (i == vTempPath.size()-1) ? vTempPath[0] : vTempPath[i+1];
+            if(DoesIntersect(vfTarget, raycast, point1, point2))
+                count++;
+            point1 = point2;
+        }
+        
+        if(count % 2 == 0){
+            vTempPath.clear();
+            std::reverse(vNewPath.begin(), vNewPath.end()); 
+
+            for(int i = 0; i < vNewPath.size(); i++){
+                vTempPath.emplace_back(vNewPath[i]);
+            }
+            for(int i = nDeparture+1; i <= nArrival; i++){
+                vTempPath.emplace_back(nodes[i]);
+            }
+            nNewCurrent = vTempPath.size()-1;
+        }
+
+        nodes = vTempPath;
+        return nNewCurrent;
     }
 
     // int GraftPath(int nDeparture, int nArrival, const std::vector<olc::vf2d>& vNewPath, const olc::vf2d& vfTarget){
@@ -812,8 +888,8 @@ public:
                     }
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
-                        //path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
-                        path.currentNode = line;
+                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
+                        //path.currentNode = line;
                         PathUpdate(path.currentNode);
                         ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line));
                     }
