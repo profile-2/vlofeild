@@ -182,12 +182,13 @@ struct sPath{
         bool inverse = (nDeparture > nArrival) ||
                         (nDeparture == nArrival && std::abs(CalcDistance(nDeparture,vNewPath.back())) < std::abs(CalcDistance(nDeparture,vNewPath.front())));
         std::vector<olc::vf2d> vTempPath;
-        int nNewCurrent = nArrival;
+        int nNewCurrent = nDeparture+vNewPath.size();
 
         if(inverse) {
             int temp = nDeparture;
             nDeparture = nArrival;
             nArrival = temp;
+            nNewCurrent = nDeparture;
             std::reverse(vNewPath.begin(), vNewPath.end());
         }
 
@@ -207,14 +208,32 @@ struct sPath{
         }
 
         // Clearing unneeded nodes when departing from internal corners
-        if(!inverse && vNewPath[0] == nodes[Next(nDeparture)] && AreColinear(nodes[nDeparture],vNewPath[0],vNewPath[1]))
+        if(!inverse && vNewPath[0] == nodes[Next(nDeparture)] && AreColinear(nodes[nDeparture],vNewPath[0],vNewPath[1])){
             vTempPath.erase(vTempPath.begin()+Next(nDeparture));
-        if(!inverse && vNewPath[0] == nodes[nDeparture]){
+            nNewCurrent--;
+        }
+        else if(!inverse && vNewPath[0] == nodes[nDeparture]){
             vTempPath.erase(vTempPath.begin()+nDeparture);
-            if(!AreColinear(nodes[Next(nDeparture)],vNewPath[0],vNewPath[1]))
-                vTempPath.erase(vTempPath.begin()+nDeparture); // eliminate second node
+            nNewCurrent--;
+            if(!AreColinear(nodes[Next(nDeparture)],vNewPath[0],vNewPath[1])){
+                vTempPath.erase(vTempPath.begin()+nDeparture);
+                nNewCurrent--;
+            }
         }
 
+        else if(inverse && vNewPath.back() == nodes[nArrival] && AreColinear(nodes[Next(nArrival)],vNewPath.back(),vNewPath[vNewPath.size()-2]))
+            vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+        else if(inverse && vNewPath.back() == nodes[Next(nArrival)] && !AreColinear(nodes[nArrival],vNewPath.back(),vNewPath[vNewPath.size()-2])){
+            vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+            vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+        }
+        else if(inverse && vNewPath.back() == nodes[Next(nArrival)] && !AreColinear(nodes[Next(nArrival)],vNewPath.back(),vNewPath[vNewPath.size()-2]))
+            vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+        else if(inverse && vNewPath.back() == nodes[Next(nArrival)] && AreColinear(nodes[nArrival],vNewPath.back(),vNewPath[vNewPath.size()-2])){
+            vTempPath.erase(vTempPath.begin()+nDeparture+vNewPath.size());
+        }
+
+        // check if the target is inside
         int count = 0;
         olc::vf2d point1 = vTempPath[0];
         olc::vf2d point2;
@@ -226,17 +245,43 @@ struct sPath{
             point1 = point2;
         }
         
+        // target is not inside the temp path so it is discarded and the reverse path is created
         if(count % 2 == 0){
             vTempPath.clear();
             std::reverse(vNewPath.begin(), vNewPath.end()); 
-
+            
             for(int i = 0; i < vNewPath.size(); i++){
                 vTempPath.emplace_back(vNewPath[i]);
             }
             for(int i = nDeparture+1; i <= nArrival; i++){
                 vTempPath.emplace_back(nodes[i]);
             }
-            nNewCurrent = vTempPath.size()-1;
+            nNewCurrent = inverse ? vNewPath.size()-1 : vTempPath.size()-1;
+
+            if(!inverse && vNewPath.back() == nodes[nDeparture] && AreColinear(nodes[Next(nDeparture)],vNewPath.back(),vNewPath[vNewPath.size()-2])){
+                vTempPath.erase(vTempPath.begin()+vNewPath.size()-1);
+                nNewCurrent--;
+            }
+            else if(!inverse && vNewPath.back() == nodes[Next(nDeparture)]){
+                vTempPath.erase(vTempPath.begin()+vNewPath.size()-1);
+                nNewCurrent--;
+                if(!AreColinear(nodes[nDeparture],vNewPath.back(),vNewPath[vNewPath.size()-2])){
+                    vTempPath.erase(vTempPath.begin()+vNewPath.size()-1);
+                    nNewCurrent--;
+                }
+            }
+            else if(inverse && vNewPath[0] == nodes[Next(nArrival)] && AreColinear(nodes[nArrival],vNewPath[0],vNewPath[1])){
+                vTempPath.erase(vTempPath.begin());
+                nNewCurrent--;
+            }
+            else if(inverse && vNewPath[0] == nodes[nArrival]){
+                vTempPath.erase(vTempPath.begin());
+                nNewCurrent--;
+                if(!AreColinear(nodes[Next(nArrival)],vNewPath[0],vNewPath[1])){
+                    vTempPath.erase(vTempPath.end());
+                }
+            }
+
         }
 
         nodes = vTempPath;
@@ -802,7 +847,7 @@ public:
     }
 
     void ResetField(){
-        int initialNode = 0;
+        int initialNode = 9;
         path.nodes.clear();
         path.nodes.emplace_back(olc::vf2d(fFieldMarginLeft,fFieldMarginTop));
 
@@ -891,7 +936,7 @@ public:
                         path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
                         //path.currentNode = line;
                         PathUpdate(path.currentNode);
-                        ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line));
+                        ship.SnapToLine(path.nodes[path.currentNode], path.nodes[path.Next(path.currentNode)], path.IsVertical(path.currentNode));
                     }
                 }
             }
