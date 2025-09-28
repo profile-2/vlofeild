@@ -13,6 +13,13 @@ namespace p2util{
         std::cout << value;
         if (newLine) std::cout << std::endl;
     }
+    
+    template<typename T1, typename T2>
+    void Echo(const T1& value1, const T2& value2, bool newLine = true) {
+        std::cout << value1 << " " << value2;
+        if (newLine) std::cout << std::endl;
+    }
+    
 
     std::string detectEncoding(std::ifstream& file) {
         char bom[3] = {0};
