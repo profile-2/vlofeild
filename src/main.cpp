@@ -5,7 +5,7 @@
 #define SCREEN_WIDTH    300
 #define SCREEN_HEIGHT   200
 #define PIXEL_SIZE      4
-#define DEBUG           1
+#define DEBUG           0
 
 enum DIRECTIONS{
     DIR_UNDEFINED,
@@ -281,9 +281,6 @@ struct sPath{
                 }
                 pge.SetDrawTarget(layer);
                 pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first+5, (olc::vf2d)(r.second-r.first));
-                // pge.DrawPartialDecal(olc::vf2d((float)r.first.x,(float)r.first.y), decal, olc::vf2d((float)r.first.x,(float)r.first.y), 
-                //     olc::vf2d((float)(r.second.x-r.first.x),(float)(r.second.y-r.first.y)));
-                //pge.DrawPartialRotatedDecal((olc::vf2d)r.first, decal, 0, olc::vf2d(), (olc::vf2d)r.first, (olc::vf2d)(r.second-r.first));
             }
         }
     }
@@ -789,10 +786,6 @@ public:
         
         SetDrawTarget(layerBg_2);
         DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
-        // DrawPartialDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), 
-        //     dclBg_2, 
-        //     olc::vf2d(fFieldMarginLeft,fFieldMarginTop),
-        //     olc::vf2d(fFieldMarginRight-fFieldMarginLeft,fFieldMarginBottom-fFieldMarginTop));
 
         path.DrawRectagles(*this, dclBg_1, layerBg_1);
 
