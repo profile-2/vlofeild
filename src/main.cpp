@@ -23,7 +23,7 @@ TODO:
 decompose polygon area
 
 bugs:
-When you cut a notch in one side and then a shorter notch in the same side there is vector overflow
+If there are two notches in the same side, the later shorter than the previous, it crashes due to a vector overflow
 */
 
 #pragma region sPath
@@ -202,7 +202,7 @@ struct sPath{
         while(currentNode != firstNode && nDeparture == -1){
             if(IsReflex(currentNode, vNodes)) {
                 nDeparture = currentNode;
-                rectangles.emplace_back(vNodes[currentNode]-2,vNodes[currentNode]+2);
+                //rectangles.emplace_back(vNodes[currentNode]-2,vNodes[currentNode]+2);
             }
             else {
                 currentNode = Next(currentNode, vNodes);
@@ -303,10 +303,10 @@ struct sPath{
     }
 
     float CalcDistance2(int nNode, const olc::vf2d& vfPoint, const std::vector<olc::vf2d>& vNodes){
-        if(vNodes[nNode].y == vNodes[Next(nNode)].y){ // vertical distance
+        if(vNodes[nNode].y == vNodes[Next(nNode, vNodes)].y){ // vertical distance
             return std::abs(vfPoint.y - vNodes[nNode].y);
         }
-        if(vNodes[nNode].x == vNodes[Next(nNode)].x){
+        if(vNodes[nNode].x == vNodes[Next(nNode, vNodes)].x){
             return std::abs(vfPoint.x - vNodes[nNode].x);
         }
         return 0; 
