@@ -5,6 +5,7 @@
 #define SCREEN_WIDTH    300
 #define SCREEN_HEIGHT   200
 #define PIXEL_SIZE      4
+#define DEBUG           1
 
 enum DIRECTIONS{
     DIR_UNDEFINED,
@@ -20,7 +21,6 @@ enum DIRECTIONS{
 
 /*
 TODO:
-decompose polygon area
 
 bugs:
 */
@@ -146,18 +146,16 @@ struct sPath{
     bool InDirection(int nDir, olc::vf2d vfPos, int nNode, const std::vector<olc::vf2d>& vNodes){
         olc::vf2d rayPos;
         switch(nDir){
-            case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-SCREEN_WIDTH); break; } // SCREEN_WIDTH is just an arbitrary distance outside the screen
-            case DIR_DOWN: { rayPos = olc::vf2d(vfPos.x,SCREEN_WIDTH); break; }
-            case DIR_LEFT: { rayPos = olc::vf2d(-SCREEN_WIDTH, vfPos.y); break; }
-            case DIR_RIGHT: { rayPos = olc::vf2d(SCREEN_WIDTH, vfPos.y); break; }
+            case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-INFINITY); break; }
+            case DIR_DOWN: { rayPos = olc::vf2d(vfPos.x,INFINITY); break; }
+            case DIR_LEFT: { rayPos = olc::vf2d(-INFINITY, vfPos.y); break; }
+            case DIR_RIGHT: { rayPos = olc::vf2d(INFINITY, vfPos.y); break; }
         }
         int count = NodesIntersectCount(vfPos,rayPos);
         if((vfPos == vNodes[nNode] || vfPos == vNodes[Next(nNode, vNodes)]) && (nDir == DIR_RIGHT || nDir == DIR_DOWN)) return count % 2 == 1;
         return count % 2 == 0;
     }
     bool InDirection(int nDir, olc::vf2d vfPos, int nNode) { return InDirection(nDir, vfPos, nNode, nodes); }
-
-
 
     int GetInDirection(int nNode, const std::vector<olc::vf2d>& vNodes){
         int nextNode = Next(nNode, vNodes);
@@ -196,12 +194,11 @@ struct sPath{
         int nDeparture = -1;
         int nIntersect = -1;
         olc::vf2d vfIntersect;
-        float fIntersectDistance = SCREEN_WIDTH;
+        float fIntersectDistance = INFINITY;
 
         while(currentNode != firstNode && nDeparture == -1){
             if(IsReflex(currentNode, vNodes)) {
                 nDeparture = currentNode;
-                //rectangles.emplace_back(vNodes[currentNode]-2,vNodes[currentNode]+2);
             }
             else {
                 currentNode = Next(currentNode, vNodes);
@@ -209,8 +206,8 @@ struct sPath{
         }
         
         if(nDeparture == -1 || vNodes.size() < 4){ // all non reflex, valid rectangle // escape condition in case something goes wrong -> "|| vNodes.size() < 4"
-            int top = SCREEN_WIDTH;
-            int left = SCREEN_WIDTH;
+            int top = 1000;
+            int left = 1000;
             int bottom = 0;
             int right = 0;
             for(auto r : vNodes){
@@ -226,10 +223,10 @@ struct sPath{
         int prevNode = Prev(currentNode, vNodes);
 
         switch(GetInDirection(prevNode, vNodes)){
-            case DIR_LEFT:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(0,SCREEN_WIDTH)); break; }
-            case DIR_UP:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(-SCREEN_WIDTH,0)); break; }
-            case DIR_RIGHT:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(0,-SCREEN_WIDTH)); break; }
-            case DIR_DOWN:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(SCREEN_WIDTH,0)); break; }
+            case DIR_LEFT:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(0,INFINITY)); break; }
+            case DIR_UP:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(-INFINITY,0)); break; }
+            case DIR_RIGHT:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(0,-INFINITY)); break; }
+            case DIR_DOWN:{ vfIntersect = olc::vf2d(vNodes[prevNode]+olc::vf2d(INFINITY,0)); break; }
         }
         for(int i = 0; i < vNodes.size(); i++){
             if(i != Prev(prevNode, vNodes) && i != prevNode && i != currentNode){
@@ -250,7 +247,6 @@ struct sPath{
 
         polygonA.emplace_back(vNodes[prevNode]);
         polygonA.emplace_back(vfIntersect);
-
         currentNode = Next(nIntersect, vNodes);
         while(currentNode != prevNode){
             polygonA.emplace_back(vNodes[currentNode]);
@@ -278,17 +274,22 @@ struct sPath{
     void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer){
         if(rectangles.size() > 0){
             for(auto r : rectangles){
-                pge.SetDrawTarget(0, true);
-                pge.DrawRect(r.first, r.second-r.first, olc::MAGENTA);
-                pge.DrawLine(r.first,r.second, olc::MAGENTA);
+                if(DEBUG){
+                    pge.SetDrawTarget(0, true);
+                    pge.DrawRect(r.first, r.second-r.first, olc::MAGENTA);
+                    pge.DrawLine(r.first,r.second, olc::MAGENTA);
+                }
                 pge.SetDrawTarget(layer);
-                pge.DrawPartialDecal((olc::vf2d)r.first,(olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first, (olc::vf2d)(r.second-r.first));
+                pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first+5, (olc::vf2d)(r.second-r.first));
+                // pge.DrawPartialDecal(olc::vf2d((float)r.first.x,(float)r.first.y), decal, olc::vf2d((float)r.first.x,(float)r.first.y), 
+                //     olc::vf2d((float)(r.second.x-r.first.x),(float)(r.second.y-r.first.y)));
+                //pge.DrawPartialRotatedDecal((olc::vf2d)r.first, decal, 0, olc::vf2d(), (olc::vf2d)r.first, (olc::vf2d)(r.second-r.first));
             }
         }
     }
 
     bool IsTargetInside(const olc::vf2d& vfTarget) const {
-        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+        olc::vf2d raycast = vfTarget + olc::vf2d(INFINITY,0);
         int count = NodesIntersectCount(vfTarget, raycast);
         return count % 2 == 0;
     }
@@ -370,14 +371,12 @@ struct sPath{
                 }
             }
         }
-        
-
 
         // check if the target is inside
         int count = 0;
         olc::vf2d point1 = vTempPath[0];
         olc::vf2d point2;
-        olc::vf2d raycast = vfTarget + olc::vf2d(SCREEN_WIDTH,0);
+        olc::vf2d raycast = vfTarget + olc::vf2d(INFINITY,0);
         for(int i=0; i < vTempPath.size(); i++){
             point2 = (i == vTempPath.size()-1) ? vTempPath[0] : vTempPath[i+1];
             if(DoesIntersect(vfTarget, raycast, point1, point2))
@@ -608,7 +607,8 @@ public:
         if(!trail.empty()){
             pge.DrawLine(pos, trail.back(), olc::Pixel(255,255,0));
             for(int i=0; i < trail.size()-1; i++){
-                pge.DrawLine(trail[i], trail[i+1], olc::RED);
+                pge.DrawLine(trail[i], trail[i+1], olc::Pixel(255,255,0));
+                if(DEBUG) pge.DrawLine(trail[i], trail[i+1], olc::RED);
             }
         }
         return trail.size();
@@ -639,7 +639,6 @@ private:
 
     cShip ship = cShip(olc::vf2d(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), fFieldMarginTop, fFieldMarginBottom, fFieldMarginLeft, fFieldMarginRight);
     sPath path;
-    //sPath trail = sPath(olc::vf2d());
 
     olc::vf2d vfCurrStart;
     olc::vf2d vfCurrEnd;
@@ -658,8 +657,6 @@ private:
 
     int layerBg_1;
     int layerBg_2;
-
-    //std::vector<std::pair<olc::vi2d, olc::vi2d>> vRectangles;
 
 public:
     GAME(){
@@ -703,9 +700,10 @@ public:
     }
 
     bool OnUserCreate(){
-        sprBg_1 = new olc::Sprite("assets/background_day.png");
+        sprBg_1 = new olc::Sprite("assets/ship_bg_day.png");
+        //sprBg_1 = new olc::Sprite("assets/ship__day.png");
         dclBg_1 = new olc::Decal(sprBg_1);
-        sprBg_2 = new olc::Sprite("assets/background_night.png");
+        sprBg_2 = new olc::Sprite("assets/ship_bg_night.png");
         dclBg_2 = new olc::Decal(sprBg_2);
 
         ResetField();
@@ -791,13 +789,17 @@ public:
         
         SetDrawTarget(layerBg_2);
         DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
+        // DrawPartialDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), 
+        //     dclBg_2, 
+        //     olc::vf2d(fFieldMarginLeft,fFieldMarginTop),
+        //     olc::vf2d(fFieldMarginRight-fFieldMarginLeft,fFieldMarginBottom-fFieldMarginTop));
 
         path.DrawRectagles(*this, dclBg_1, layerBg_1);
 
         SetDrawTarget(0, true);
-        path.DrawAll(*this);
-        if(path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
-        DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
+        path.DrawAll(*this, olc::Pixel(192,192,192));
+        if(DEBUG && path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
+        if(DEBUG) DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
         ship.Draw(*this);
         DrawLine(vfTarget, vfTarget, olc::RED);
         DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
