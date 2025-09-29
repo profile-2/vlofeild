@@ -23,7 +23,6 @@ TODO:
 decompose polygon area
 
 bugs:
-If there are two notches in the same side, the later shorter than the previous, it crashes due to a vector overflow
 */
 
 #pragma region sPath
@@ -266,7 +265,6 @@ struct sPath{
         }
         polygonB.emplace_back(vNodes[nIntersect]);
         polygonB.emplace_back(vfIntersect);
-        p2util::Echo(polygonB.size());
 
         GetRectangles(polygonA);
         GetRectangles(polygonB);
@@ -277,11 +275,14 @@ struct sPath{
         GetRectangles(nodes);
     }
 
-    void DrawRectagles(olc::PixelGameEngine& pge){
+    void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer){
         if(rectangles.size() > 0){
             for(auto r : rectangles){
+                pge.SetDrawTarget(0, true);
                 pge.DrawRect(r.first, r.second-r.first, olc::MAGENTA);
                 pge.DrawLine(r.first,r.second, olc::MAGENTA);
+                pge.SetDrawTarget(layer);
+                pge.DrawPartialDecal((olc::vf2d)r.first,(olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first, (olc::vf2d)(r.second-r.first));
             }
         }
     }
@@ -650,6 +651,14 @@ private:
 
     olc::vf2d vfTarget = olc::vf2d(SCREEN_WIDTH-20,20);
 
+    olc::Sprite* sprBg_1;
+    olc::Decal* dclBg_1;
+    olc::Sprite* sprBg_2;
+    olc::Decal* dclBg_2;
+
+    int layerBg_1;
+    int layerBg_2;
+
     //std::vector<std::pair<olc::vi2d, olc::vi2d>> vRectangles;
 
 public:
@@ -691,21 +700,27 @@ public:
         SnapShipToLine(initialNode);
         PathUpdate(initialNode);
         path.currentNode = initialNode;
-
-        //test
-        // for(auto n: path.nodes){
-        //     p2util::Echo(n,0); p2util::Echo(",",0);
-        // }
-        // p2util::Echo("");
     }
 
     bool OnUserCreate(){
-        
+        sprBg_1 = new olc::Sprite("assets/background_day.png");
+        dclBg_1 = new olc::Decal(sprBg_1);
+        sprBg_2 = new olc::Sprite("assets/background_night.png");
+        dclBg_2 = new olc::Decal(sprBg_2);
+
         ResetField();
-        //test
         path.Decompose();
-        // SnapShipToLine(0);
-        // PathUpdate(0);
+
+        Clear(olc::BLANK);
+        layerBg_1 = CreateLayer();
+        SetDrawTarget(layerBg_1);
+        EnableLayer(layerBg_1, true);
+        Clear(olc::BLANK);
+        layerBg_2 = CreateLayer();
+        SetDrawTarget(layerBg_2);
+        EnableLayer(layerBg_2, true);
+        Clear(olc::BLANK);
+        
         return true;
     }
 
@@ -774,7 +789,12 @@ public:
         if(GetKey(olc::Key::R).bPressed) ResetField();
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         
-        path.DrawRectagles(*this);
+        SetDrawTarget(layerBg_2);
+        DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
+
+        path.DrawRectagles(*this, dclBg_1, layerBg_1);
+
+        SetDrawTarget(0, true);
         path.DrawAll(*this);
         if(path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
         DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
