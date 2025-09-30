@@ -3,7 +3,7 @@
 #include "profile_2/p2util.h"
 
 #define SCREEN_WIDTH    300
-#define SCREEN_HEIGHT   200
+#define SCREEN_HEIGHT   210
 #define PIXEL_SIZE      4
 #define DEBUG           0
 
@@ -631,13 +631,41 @@ public:
     }
 };
 
+struct sFont{
+    olc::Decal* decal;
+    std::string map; // List of characters in the font tileset in the order they appear
+    olc::vi2d grid_size;
+    olc::vi2d cell_size;
+
+    sFont(olc::Decal* dclFont, olc::vi2d nGridSize, olc::vi2d nCellSize, std::string sMap):
+        decal(dclFont), map(sMap), grid_size(nGridSize), cell_size(nCellSize) {}
+    
+    void Draw(olc::PixelGameEngine& pge, const std::string& text, olc::vf2d pos, const int length, 
+                const olc::vi2d& anchor = olc::vi2d(0,0), const olc::Pixel tint = olc::WHITE){
+        float width = length*cell_size.x;
+        if(text.size() < length) width = text.size()*cell_size.x;
+        const float height = cell_size.y;
+    
+        if(anchor.x == 1) pos.x -= width/2;
+        else if(anchor.x == 2) pos.x -= width;
+        if(anchor.y == 1) pos.y -= height/2;
+        else if(anchor.y == 2) pos.y -= height;
+    
+        for(int f = 0; f < text.length() && f < length; f++){
+            size_t charPos = map.find(text[f]);
+            olc::vf2d letter = olc::vf2d(charPos%grid_size.x,charPos/grid_size.x)*cell_size;
+            pge.DrawPartialDecal(pos+olc::vf2d(f*cell_size.x,0), decal, letter, cell_size, {1,1}, tint);
+        }
+    }
+};
+
 class GAME : public olc::PixelGameEngine{
 #pragma region GAME_private
 private:
     const float fFieldMarginLeft = 5;
     const float fFieldMarginRight = SCREEN_WIDTH - 5;
     const float fFieldMarginTop = 5;
-    const float fFieldMarginBottom = SCREEN_HEIGHT - 5;
+    const float fFieldMarginBottom = SCREEN_HEIGHT - 15;
 
     cShip ship = cShip(olc::vf2d(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), fFieldMarginTop, fFieldMarginBottom, fFieldMarginLeft, fFieldMarginRight);
     sPath path;
@@ -659,6 +687,10 @@ private:
 
     int layerBg_1;
     int layerBg_2;
+
+    olc::Sprite* sprFont;
+    olc::Decal* dclFont;
+    sFont* fontFFS;
 
 public:
     GAME(){
@@ -706,6 +738,11 @@ public:
         dclBg_1 = new olc::Decal(sprBg_1);
         sprBg_2 = new olc::Sprite("assets/ship_bg_night.png");
         dclBg_2 = new olc::Decal(sprBg_2);
+        sprFont = new olc::Sprite("assets/ffs_font_tile.png");
+        dclFont = new olc::Decal(sprFont);
+
+        fontFFS = new sFont(dclFont, olc::vi2d(16,6), olc::vi2d(8,8), 
+                        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?/:\"'-.,_;#+()%~*  =·>");
 
         ResetField();
         path.Decompose();
@@ -799,6 +836,8 @@ public:
         DrawLine(vfTarget, vfTarget, olc::RED);
         DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
+
+        fontFFS->Draw(*this, std::to_string(0.564), {fFieldMarginLeft,fFieldMarginBottom+3}, 5);
         return true;
     }
 };
