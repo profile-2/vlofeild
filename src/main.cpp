@@ -28,7 +28,6 @@ Make target interact with trail
 Win and lose conditions
 
 bugs:
-Figured out the problem I had with DrawPartialDecal, I need to rewrite that part.
 Once the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
 */
 
@@ -306,7 +305,7 @@ struct sPath{
         return count;
     }
     int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B) const { return NodesIntersectCount(point1A, point1B, nodes); }
-    void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer){
+    void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer, float fLeftMargin, float fTopMargin){
         if(rectangles.size() > 0){
             for(auto r : rectangles){
                 if(DEBUG){
@@ -315,7 +314,8 @@ struct sPath{
                     pge.DrawLine(r.first,r.second, olc::MAGENTA);
                 }
                 pge.SetDrawTarget(layer);
-                pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first+5, (olc::vf2d)(r.second-r.first));
+                pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, 
+                                    (olc::vf2d)r.first-olc::vf2d(fLeftMargin,fTopMargin), (olc::vf2d)(r.second-r.first));
             }
         }
     }
@@ -789,7 +789,7 @@ public:
         SetDrawTarget(layerBg_2);
         DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
 
-        path.DrawRectagles(*this, dclBg_1, layerBg_1);
+        path.DrawRectagles(*this, dclBg_1, layerBg_1, fFieldMarginLeft, fFieldMarginTop);
 
         SetDrawTarget(0, true);
         path.DrawAll(*this, olc::Pixel(192,192,192));
