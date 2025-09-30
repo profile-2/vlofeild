@@ -21,8 +21,15 @@ enum DIRECTIONS{
 
 /*
 TODO:
+Add text drawing
+Calculate polygon area
+Make target move and interact with path.
+Make target interact with trail
+Win and lose conditions
 
 bugs:
+Figured out the problem I had with DrawPartialDecal, I need to rewrite that part.
+Once the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
 */
 
 #pragma region sPath
@@ -35,53 +42,28 @@ struct sPath{
         currentNode = 0;
     }
 
-    int Next(int node, const std::vector<olc::vf2d>& vNodes) const {
-        if(node == vNodes.size()-1) return 0;
-        return node+1;
-    }
-    int Next(int node) { return Next(node, nodes); }
-
-    int Prev(int node, const std::vector<olc::vf2d>& vNodes){
-        if(node == 0) return vNodes.size()-1;
-        return node-1;
-    }
-    int Prev(int node) { return Prev(node, nodes); }
-
-    bool IsVertical(int node, const std::vector<olc::vf2d>& vNodes) { return vNodes[node].x == vNodes[Next(node, vNodes)].x; }
-    bool IsVertical(int node) { return IsVertical(node, nodes); }
-    bool IsVertical() { return IsVertical(currentNode); }
-
-    int GetStartExit(int node){
-
-        if(IsVertical(node)){
-            if (nodes[Prev(node)].x >= nodes[node].x)
-                return DIR_RIGHT;
-            else
-                return DIR_LEFT;
-        }
-        else{
-            if (nodes[Prev(node)].y >= nodes[node].y)
-                return DIR_DOWN;
-            else
-                return DIR_UP;
-        }
-        return DIR_UNDEFINED;
+    bool AreColinear(const olc::vf2d& pointA, const olc::vf2d& pointB, const olc::vf2d& pointC){
+        return (pointA.x == pointB.x && pointB.x == pointC.x) || (pointA.y == pointB.y && pointB.y == pointC.y); 
     }
 
-    int GetEndExit(int node){
-        if(IsVertical(node)){
-            if (nodes[Next(node)].x >= nodes[Next(Next(node))].x)
-                return DIR_LEFT;
-            else
-                return DIR_RIGHT;
+    float CalcDistance(int nNode, const olc::vf2d& vfPoint){
+        if(nodes[nNode].x == vfPoint.x){ // vertical distance
+            return vfPoint.y - nodes[nNode].y;
         }
-        else{
-            if (nodes[Next(node)].y >= nodes[Next(Next(node))].y)
-                return DIR_UP;
-            else
-                return DIR_DOWN;
+        if(nodes[nNode].y == vfPoint.y){
+            return vfPoint.x - nodes[nNode].x;
         }
-        return DIR_UNDEFINED;
+        return 0; 
+    }
+
+    float CalcDistance2(int nNode, const olc::vf2d& vfPoint, const std::vector<olc::vf2d>& vNodes){
+        if(vNodes[nNode].y == vNodes[Next(nNode, vNodes)].y){ // vertical distance
+            return std::abs(vfPoint.y - vNodes[nNode].y);
+        }
+        if(vNodes[nNode].x == vNodes[Next(nNode, vNodes)].x){
+            return std::abs(vfPoint.x - vNodes[nNode].x);
+        }
+        return 0; 
     }
 
     bool DoesIntersect(olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B) const {
@@ -107,32 +89,6 @@ struct sPath{
         return false;
     }
 
-    int NodesIntersect(olc::vf2d point1A, olc::vf2d point1B){
-        olc::vf2d point2A = nodes[0];
-        olc::vf2d point2B;
-        for(int i=0; i < nodes.size(); i++){
-            point2B = nodes[Next(i)];
-            if(DoesIntersect(point1A, point1B, point2A, point2B))
-                return i;
-            point2A = point2B;
-        }
-        return -1;
-    }
-
-    int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B, const std::vector<olc::vf2d>& vNodes) const {
-        int count = 0;
-        olc::vf2d point2A = vNodes[0];
-        olc::vf2d point2B;
-        for(int i=0; i < vNodes.size(); i++){
-            point2B = vNodes[Next(i, vNodes)];
-            if(DoesIntersect(point1A, point1B, point2A, point2B))
-                count++;
-            point2A = point2B;
-        }
-        return count;
-    }
-    int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B) const { return NodesIntersectCount(point1A, point1B, nodes); }
-
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
         pge.DrawLine(nodes[node], nodes[Next(node)], color);
     }
@@ -142,20 +98,6 @@ struct sPath{
             Draw(pge, i, color);
         }
     }
-
-    bool InDirection(int nDir, olc::vf2d vfPos, int nNode, const std::vector<olc::vf2d>& vNodes){
-        olc::vf2d rayPos;
-        switch(nDir){
-            case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-INFINITY); break; }
-            case DIR_DOWN: { rayPos = olc::vf2d(vfPos.x,INFINITY); break; }
-            case DIR_LEFT: { rayPos = olc::vf2d(-INFINITY, vfPos.y); break; }
-            case DIR_RIGHT: { rayPos = olc::vf2d(INFINITY, vfPos.y); break; }
-        }
-        int count = NodesIntersectCount(vfPos,rayPos);
-        if((vfPos == vNodes[nNode] || vfPos == vNodes[Next(nNode, vNodes)]) && (nDir == DIR_RIGHT || nDir == DIR_DOWN)) return count % 2 == 1;
-        return count % 2 == 0;
-    }
-    bool InDirection(int nDir, olc::vf2d vfPos, int nNode) { return InDirection(nDir, vfPos, nNode, nodes); }
 
     int GetInDirection(int nNode, const std::vector<olc::vf2d>& vNodes){
         int nextNode = Next(nNode, vNodes);
@@ -173,16 +115,37 @@ struct sPath{
     }
     int GetInDirection(int nNode) { return GetInDirection(nNode, nodes); }
 
-    bool IsReflex(int nNode, const std::vector<olc::vf2d>& vNodes){
-        int nodeDir = GetInDirection(nNode, vNodes);
-        int prevNodeDir = GetInDirection(Prev(nNode, vNodes), vNodes);
-        if(nodeDir == DIR_UP && prevNodeDir == DIR_RIGHT) return true;
-        if(nodeDir == DIR_RIGHT && prevNodeDir == DIR_DOWN) return true;
-        if(nodeDir == DIR_DOWN && prevNodeDir == DIR_LEFT) return true;
-        if(nodeDir == DIR_LEFT && prevNodeDir == DIR_UP) return true;
-        return false;
+    int GetEndExit(int node){
+        if(IsVertical(node)){
+            if (nodes[Next(node)].x >= nodes[Next(Next(node))].x)
+                return DIR_LEFT;
+            else
+                return DIR_RIGHT;
+        }
+        else{
+            if (nodes[Next(node)].y >= nodes[Next(Next(node))].y)
+                return DIR_UP;
+            else
+                return DIR_DOWN;
+        }
+        return DIR_UNDEFINED;
     }
-    bool IsReflex(int nNode) { return IsReflex(nNode, nodes); }
+
+    int GetStartExit(int node){
+        if(IsVertical(node)){
+            if (nodes[Prev(node)].x >= nodes[node].x)
+                return DIR_RIGHT;
+            else
+                return DIR_LEFT;
+        }
+        else{
+            if (nodes[Prev(node)].y >= nodes[node].y)
+                return DIR_DOWN;
+            else
+                return DIR_UP;
+        }
+        return DIR_UNDEFINED;
+    }
 
     void GetRectangles(std::vector<olc::vf2d>& vNodes){
         int currentNode = 0;
@@ -271,6 +234,78 @@ struct sPath{
         GetRectangles(nodes);
     }
 
+    bool InDirection(int nDir, olc::vf2d vfPos, int nNode, const std::vector<olc::vf2d>& vNodes){
+        olc::vf2d rayPos;
+        switch(nDir){
+            case DIR_UP: { rayPos = olc::vf2d(vfPos.x,-INFINITY); break; }
+            case DIR_DOWN: { rayPos = olc::vf2d(vfPos.x,INFINITY); break; }
+            case DIR_LEFT: { rayPos = olc::vf2d(-INFINITY, vfPos.y); break; }
+            case DIR_RIGHT: { rayPos = olc::vf2d(INFINITY, vfPos.y); break; }
+        }
+        int count = NodesIntersectCount(vfPos,rayPos);
+        if((vfPos == vNodes[nNode] || vfPos == vNodes[Next(nNode, vNodes)]) && (nDir == DIR_RIGHT || nDir == DIR_DOWN)) return count % 2 == 1;
+        return count % 2 == 0;
+    }
+    bool InDirection(int nDir, olc::vf2d vfPos, int nNode) { return InDirection(nDir, vfPos, nNode, nodes); }
+
+    bool IsReflex(int nNode, const std::vector<olc::vf2d>& vNodes){
+        int nodeDir = GetInDirection(nNode, vNodes);
+        int prevNodeDir = GetInDirection(Prev(nNode, vNodes), vNodes);
+        if(nodeDir == DIR_UP && prevNodeDir == DIR_RIGHT) return true;
+        if(nodeDir == DIR_RIGHT && prevNodeDir == DIR_DOWN) return true;
+        if(nodeDir == DIR_DOWN && prevNodeDir == DIR_LEFT) return true;
+        if(nodeDir == DIR_LEFT && prevNodeDir == DIR_UP) return true;
+        return false;
+    }
+    bool IsReflex(int nNode) { return IsReflex(nNode, nodes); }
+
+    bool IsTargetInside(const olc::vf2d& vfTarget) const {
+        olc::vf2d raycast = vfTarget + olc::vf2d(INFINITY,0);
+        int count = NodesIntersectCount(vfTarget, raycast);
+        return count % 2 == 0;
+    }
+
+    bool IsVertical(int node, const std::vector<olc::vf2d>& vNodes) { return vNodes[node].x == vNodes[Next(node, vNodes)].x; }
+    bool IsVertical(int node) { return IsVertical(node, nodes); }
+    bool IsVertical() { return IsVertical(currentNode); }
+
+    int Next(int node, const std::vector<olc::vf2d>& vNodes) const {
+        if(node == vNodes.size()-1) return 0;
+        return node+1;
+    }
+    int Next(int node) { return Next(node, nodes); }
+
+    int Prev(int node, const std::vector<olc::vf2d>& vNodes){
+        if(node == 0) return vNodes.size()-1;
+        return node-1;
+    }
+    int Prev(int node) { return Prev(node, nodes); }
+
+    int NodesIntersect(olc::vf2d point1A, olc::vf2d point1B){
+        olc::vf2d point2A = nodes[0];
+        olc::vf2d point2B;
+        for(int i=0; i < nodes.size(); i++){
+            point2B = nodes[Next(i)];
+            if(DoesIntersect(point1A, point1B, point2A, point2B))
+                return i;
+            point2A = point2B;
+        }
+        return -1;
+    }
+
+    int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B, const std::vector<olc::vf2d>& vNodes) const {
+        int count = 0;
+        olc::vf2d point2A = vNodes[0];
+        olc::vf2d point2B;
+        for(int i=0; i < vNodes.size(); i++){
+            point2B = vNodes[Next(i, vNodes)];
+            if(DoesIntersect(point1A, point1B, point2A, point2B))
+                count++;
+            point2A = point2B;
+        }
+        return count;
+    }
+    int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B) const { return NodesIntersectCount(point1A, point1B, nodes); }
     void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer){
         if(rectangles.size() > 0){
             for(auto r : rectangles){
@@ -283,36 +318,6 @@ struct sPath{
                 pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, (olc::vf2d)r.first+5, (olc::vf2d)(r.second-r.first));
             }
         }
-    }
-
-    bool IsTargetInside(const olc::vf2d& vfTarget) const {
-        olc::vf2d raycast = vfTarget + olc::vf2d(INFINITY,0);
-        int count = NodesIntersectCount(vfTarget, raycast);
-        return count % 2 == 0;
-    }
-
-    float CalcDistance(int nNode, const olc::vf2d& vfPoint){
-        if(nodes[nNode].x == vfPoint.x){ // vertical distance
-            return vfPoint.y - nodes[nNode].y;
-        }
-        if(nodes[nNode].y == vfPoint.y){
-            return vfPoint.x - nodes[nNode].x;
-        }
-        return 0; 
-    }
-
-    float CalcDistance2(int nNode, const olc::vf2d& vfPoint, const std::vector<olc::vf2d>& vNodes){
-        if(vNodes[nNode].y == vNodes[Next(nNode, vNodes)].y){ // vertical distance
-            return std::abs(vfPoint.y - vNodes[nNode].y);
-        }
-        if(vNodes[nNode].x == vNodes[Next(nNode, vNodes)].x){
-            return std::abs(vfPoint.x - vNodes[nNode].x);
-        }
-        return 0; 
-    }
-
-    bool AreColinear(const olc::vf2d& pointA, const olc::vf2d& pointB, const olc::vf2d& pointC){
-        return (pointA.x == pointB.x && pointB.x == pointC.x) || (pointA.y == pointB.y && pointB.y == pointC.y); 
     }
 
     int GraftPath(int nDeparture, int nArrival, std::vector<olc::vf2d> vNewPath, const olc::vf2d& vfTarget){
@@ -698,7 +703,6 @@ public:
 
     bool OnUserCreate(){
         sprBg_1 = new olc::Sprite("assets/ship_bg_day.png");
-        //sprBg_1 = new olc::Sprite("assets/ship__day.png");
         dclBg_1 = new olc::Decal(sprBg_1);
         sprBg_2 = new olc::Sprite("assets/ship_bg_night.png");
         dclBg_2 = new olc::Decal(sprBg_2);
@@ -752,13 +756,12 @@ public:
             }
             
             if(!ship.IsSnapd() && ship.DidTurn(direction)){
-                //ship.SetPos(olc::vf2d((int)ship.GetPos().x,(int)ship.GetPos().y));
                  ship.AddTrail(ship.GetPos());
             }
 
             ship.Move(direction, fElapsedTime * 75);
 
-            if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bPressed){//lastPosSnapped != ship.GetPos() && lastPosSnapped != ship.GetLastPos()){//!GetKey(olc::Key::SPACE).bHeld){
+            if(!ship.IsSnapd() && !GetKey(olc::Key::SPACE).bPressed){
                 int line = path.NodesIntersect(ship.GetPos(),ship.GetLastPos());
                 if(line != -1){
                     ship.SnapToLine(path.nodes[line], path.nodes[path.Next(line)], path.IsVertical(line)); // snap to old path to ensure AddTrail adds a valid pos for arr
@@ -769,7 +772,6 @@ public:
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
                         path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
-                        //path.currentNode = line;
                         PathUpdate(path.currentNode);
                         ship.SnapToLine(path.nodes[path.currentNode], path.nodes[path.Next(path.currentNode)], path.IsVertical(path.currentNode));
                         path.Decompose();
