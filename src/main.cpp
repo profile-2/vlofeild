@@ -21,8 +21,6 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Add text drawing
-Calculate polygon area
 Make target move and interact with path.
 Make target interact with trail
 Win and lose conditions
@@ -36,9 +34,11 @@ struct sPath{
     std::vector<olc::vf2d> nodes;
     int currentNode;
     std::vector<std::pair<olc::vi2d, olc::vi2d>> rectangles;
+    float fAreaPercent;
 
     sPath(){
         currentNode = 0;
+        fAreaPercent = 1;
     }
 
     bool AreColinear(const olc::vf2d& pointA, const olc::vf2d& pointB, const olc::vf2d& pointC){
@@ -306,6 +306,7 @@ struct sPath{
     }
     int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B) const { return NodesIntersectCount(point1A, point1B, nodes); }
     void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer, float fLeftMargin, float fTopMargin){
+        float area = 0.0;
         if(rectangles.size() > 0){
             for(auto r : rectangles){
                 if(DEBUG){
@@ -316,8 +317,10 @@ struct sPath{
                 pge.SetDrawTarget(layer);
                 pge.DrawPartialDecal((olc::vf2d)r.first, (olc::vf2d)(r.second-r.first), decal, 
                                     (olc::vf2d)r.first-olc::vf2d(fLeftMargin,fTopMargin), (olc::vf2d)(r.second-r.first));
+                area += (r.second.x-r.first.x) * (r.second.y-r.first.y);
             }
         }
+        fAreaPercent = area / (290*190);
     }
 
     int GraftPath(int nDeparture, int nArrival, std::vector<olc::vf2d> vNewPath, const olc::vf2d& vfTarget){
@@ -837,7 +840,9 @@ public:
         DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
 
-        fontFFS->Draw(*this, std::to_string(0.564), {fFieldMarginLeft,fFieldMarginBottom+3}, 5);
+        fontFFS->Draw(*this, "Remaining:", {fFieldMarginLeft,fFieldMarginBottom+3}, 11);
+        fontFFS->Draw(*this, std::to_string(path.fAreaPercent*100), {10*8+fFieldMarginLeft,fFieldMarginBottom+3}, 5);
+        fontFFS->Draw(*this, "%", {15*8+fFieldMarginLeft,fFieldMarginBottom+3}, 1);
         return true;
     }
 };
@@ -845,6 +850,6 @@ public:
 int main(){
     GAME game;
     if(game.Construct(SCREEN_WIDTH, SCREEN_HEIGHT, PIXEL_SIZE, PIXEL_SIZE)) game.Start();
-    else return -1;
+    else return -10;
     return 0;
 }
