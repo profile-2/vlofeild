@@ -78,10 +78,14 @@ struct sPath{
         float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
 
         if(point2AX == point2BX){ //vertical
-            if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
+            if(point1AX == point1BX && point1AX == point2AX && point2AY <= point1BY && point2BY >= point1AY) // colinear
+                return true;
+            else if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
                 return true;
         }
         else{
+            if(point1AY == point2AY && point2AX <= point1BX && point2BX >= point1AX) // colinear
+                return true;
             if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
                 return true;
         }
@@ -634,6 +638,74 @@ public:
     }
 };
 
+#pragma region cEnemy
+class cEnemy{
+private:
+    olc::Decal* decal;
+    olc::vf2d position;
+    olc::vf2d lastPosition;
+    olc::vf2d originalSize;
+    olc::vf2d size;
+    float scale;
+    olc::Pixel color;
+    olc::vf2d speed;
+
+public:
+    cEnemy(olc::Decal* dclImage, const olc::vf2d& vfPosition, const olc::vf2d& vfSize, const float& fScale):
+            decal(dclImage), position(vfPosition), originalSize(vfSize), scale(fScale){
+        size = originalSize * scale;
+        color = olc::BLACK;
+        speed = olc::vf2d(40,40);
+        lastPosition = position;
+    }
+
+    void Draw(olc::PixelGameEngine& pge){
+        pge.SetDrawTarget(0,1);
+        pge.DrawDecal(position, decal, olc::vf2d(scale,scale), color);
+    }
+
+    olc::vf2d GetPos() { return position; }
+
+    void Move(sPath path, float fTime){
+        position = position + speed*fTime;
+ 
+        
+        int intersect = path.NodesIntersect(position,position+olc::vf2d(size.x,0));
+        if(intersect == -1) intersect = path.NodesIntersect(position,position+olc::vf2d(0,size.y));
+        if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y));
+        if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y));
+
+        if(intersect != -1){
+            int direction = path.GetInDirection(intersect);
+            switch(direction){
+                case DIR_UP: {
+                    speed.y *=-1;
+                    break;
+                }
+                case DIR_DOWN: {
+                    speed.y *=-1;
+                    break;
+                }
+                case DIR_LEFT: {
+                    speed.x *=-1;
+                    break;
+                }
+                case DIR_RIGHT: {
+                    speed.x *=-1;
+                    break;
+                }
+            }
+            p2util::Echo(direction, speed);
+        }
+        else{
+            lastPosition = position;
+        }
+
+    }
+
+    void SetPos(olc::vf2d vfPos) { position = vfPos; }
+};
+
 struct sFont{
     olc::Decal* decal;
     std::string map; // List of characters in the font tileset in the order they appear
@@ -691,6 +763,10 @@ private:
     int layerBg_1;
     int layerBg_2;
 
+    olc::Sprite* sprEnemy;
+    olc::Decal* dclEnemy;
+    cEnemy* boss;
+
     olc::Sprite* sprFont;
     olc::Decal* dclFont;
     sFont* fontFFS;
@@ -743,6 +819,10 @@ public:
         dclBg_2 = new olc::Decal(sprBg_2);
         sprFont = new olc::Sprite("assets/ffs_font_tile.png");
         dclFont = new olc::Decal(sprFont);
+        sprEnemy = new olc::Sprite("assets/dvd_logo.png");
+        dclEnemy = new olc::Decal(sprEnemy);
+
+        boss = new cEnemy(dclEnemy, olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10), olc::vf2d(1000,441), 0.05);
 
         fontFFS = new sFont(dclFont, olc::vi2d(16,6), olc::vi2d(8,8), 
                         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?/:\"'-.,_;#+()%~*  =·>");
@@ -811,7 +891,7 @@ public:
                     }
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
-                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), vfTarget); // arr is line, graftPath return new arr node
+                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), boss->GetPos()); // arr is line, graftPath return new arr node
                         PathUpdate(path.currentNode);
                         ship.SnapToLine(path.nodes[path.currentNode], path.nodes[path.Next(path.currentNode)], path.IsVertical(path.currentNode));
                         path.Decompose();
@@ -822,8 +902,13 @@ public:
             ship.SetLastDirection(ship.GetDirection());
         }
 
+        boss->Move(path, fElapsedTime);
+
         //test
-        if(GetKey(olc::Key::R).bPressed) ResetField();
+        if(GetKey(olc::Key::R).bPressed) {
+            ResetField();
+            boss->SetPos(olc::vf2d(10,100));
+        }
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         
         SetDrawTarget(layerBg_2);
@@ -836,8 +921,9 @@ public:
         if(DEBUG && path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
         if(DEBUG) DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
         ship.Draw(*this);
-        DrawLine(vfTarget, vfTarget, olc::RED);
-        DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
+        // DrawLine(vfTarget, vfTarget, olc::RED);
+        // DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
+        boss->Draw(*this);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
 
         fontFFS->Draw(*this, "Remaining:", {fFieldMarginLeft,fFieldMarginBottom+3}, 11);
