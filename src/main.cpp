@@ -1,4 +1,5 @@
 #define OLC_PGE_APPLICATION
+#include <random>
 #include "OneLoneCoder/olcPixelGameEngine.h"
 #include "profile_2/p2util.h"
 
@@ -21,13 +22,17 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Make target move and interact with path.
 Make target interact with trail
 Win and lose conditions
 
 bugs:
 Once the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
 */
+
+std::random_device rd;
+std::mt19937 rng(rd());
+std::uniform_int_distribution<int> distColor(0, 128);
+std::uniform_real_distribution<float> distSpeed(0.5,1.5);
 
 #pragma region sPath
 struct sPath{
@@ -508,6 +513,7 @@ public:
         if(pos.x < left) pos.x = left;
         else if(pos.x > right) pos.x = right;
 
+        // stopping the ship from going over the trail to not produce convex polygons
         if(!snapToLine && trail.size() > 1 && lastPos != trail.back()){
             for(int i = 0; i < trail.size() -1; i++){
                 if((trail[i].x == trail[i+1].x && pos.y == lastPos.y) && 
@@ -648,13 +654,14 @@ private:
     float scale;
     olc::Pixel color;
     olc::vf2d speed;
+    float speedBase;
 
 public:
-    cEnemy(olc::Decal* dclImage, const olc::vf2d& vfPosition, const olc::vf2d& vfSize, const float& fScale):
-            decal(dclImage), position(vfPosition), originalSize(vfSize), scale(fScale){
+    cEnemy(olc::Decal* dclImage, const olc::vf2d& vfPosition, const olc::vf2d& vfSize, const float& fScale, const float& fSpeed):
+            decal(dclImage), position(vfPosition), originalSize(vfSize), scale(fScale), speedBase(fSpeed){
         size = originalSize * scale;
-        color = olc::BLACK;
-        speed = olc::vf2d(40,40);
+        color = olc::Pixel(distColor(rd),distColor(rd),distColor(rd));
+        speed = olc::vf2d(speedBase,speedBase);
     }
 
     void Draw(olc::PixelGameEngine& pge){
@@ -687,7 +694,6 @@ public:
             else {
                 speed.y *= -1;
             }
-            position = lastPosition;
         }
         else if(intersectBott != -1){
             if(intersectRite != -1){
@@ -699,63 +705,32 @@ public:
                 else speed.y *= -1;
             }
             else speed.y *= -1;
-            position = lastPosition;
         }
         else if(intersectLeft != -1){
             if(intersectRite != -1) speed.y *= -1;
             else speed.x *= -1;
-            position = lastPosition;
         }
         else if(intersectRite != -1){
             speed.x *= -1;
+        }
+
+        if(intersectTopp != -1 || intersectBott != -1 || intersectLeft != -1 || intersectRite != -1){
             position = lastPosition;
+            color = olc::Pixel(distColor(rd), distColor(rd), distColor(rd));
+
+            float speedMod = distSpeed(rd);
+            speed.x = speed.x < 0 ? -speedBase : speedBase;
+            speed.y = speed.y < 0 ? -speedBase : speedBase;
+            speed = speed * olc::vf2d(speedMod,2.0-speedMod);
+
+            if (DEBUG){
+                p2util::Echo(speed,0);
+                p2util::Echo("top",intersectTopp,0);
+                p2util::Echo("bottom",intersectBott,0);
+                p2util::Echo("left",intersectLeft,0);
+                p2util::Echo("right",intersectRite);
+            }
         }
-
-        if(DEBUG &&(intersectTopp != -1 || intersectBott != -1 || intersectLeft != -1 || intersectRite != -1)){
-            p2util::Echo(speed,false);
-            p2util::Echo("top",intersectTopp,0);
-            p2util::Echo("bottom",intersectBott,0);
-            p2util::Echo("left",intersectLeft,0);
-            p2util::Echo("right",intersectRite);
-        }
-        // int intersect = path.NodesIntersect(position,position+olc::vf2d(size.x,0));
-        // if(intersect == -1) intersect = path.NodesIntersect(position,position+olc::vf2d(0,size.y));
-        // if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y));
-        // if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y));
-
-        // if(intersect != -1){    
-        //     p2util::Echo("arriba",path.NodesIntersect(position,position+olc::vf2d(size.x,0)),0);
-        //     p2util::Echo("izq",path.NodesIntersect(position,position+olc::vf2d(0,size.y)),0);
-        //     p2util::Echo("abajo",path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y)),0);
-        //     p2util::Echo("der",path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y)));
-        // }
-
-        // if(intersect != -1){
-        //     int direction = path.GetInDirection(intersect);
-        //     switch(direction){
-        //         case DIR_UP: {
-        //             speed.y *=-1;
-        //             break;
-        //         }
-        //         case DIR_DOWN: {
-        //             speed.y *=-1;
-        //             break;
-        //         }
-        //         case DIR_LEFT: {
-        //             speed.x *=-1;
-        //             break;
-        //         }
-        //         case DIR_RIGHT: {
-        //             speed.x *=-1;
-        //             break;
-        //         }
-        //     }
-        //     p2util::Echo(direction, speed);
-        // }
-        // else{
-        //     lastPosition = position;
-        // }
-
     }
 
     void SetPos(olc::vf2d vfPos) { position = vfPos; }
@@ -877,7 +852,7 @@ public:
         sprEnemy = new olc::Sprite("assets/dvd_logo.png");
         dclEnemy = new olc::Decal(sprEnemy);
 
-        boss = new cEnemy(dclEnemy, olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10), olc::vf2d(1000,441), 0.05);
+        boss = new cEnemy(dclEnemy, olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10), olc::vf2d(1000,441), 0.05, 40.0);
 
         fontFFS = new sFont(dclFont, olc::vi2d(16,6), olc::vi2d(8,8), 
                         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?/:\"'-.,_;#+()%~*  =·>");
