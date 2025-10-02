@@ -78,14 +78,14 @@ struct sPath{
         float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
 
         if(point2AX == point2BX){ //vertical
-            if(point1AX == point1BX && point1AX == point2AX && point2AY <= point1BY && point2BY >= point1AY) // colinear
-                return true;
-            else if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
+            // if(point1AX == point1BX && point1AX == point2AX && point2AY <= point1BY && point2BY >= point1AY) // colinear
+            //     return true;
+            if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
                 return true;
         }
         else{
-            if(point1AY == point2AY && point2AX <= point1BX && point2BX >= point1AX) // colinear
-                return true;
+            // if(point1AY == point2AY && point2AX <= point1BX && point2BX >= point1AX) // colinear
+            //     return true;
             if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
                 return true;
         }
@@ -643,7 +643,6 @@ class cEnemy{
 private:
     olc::Decal* decal;
     olc::vf2d position;
-    olc::vf2d lastPosition;
     olc::vf2d originalSize;
     olc::vf2d size;
     float scale;
@@ -656,50 +655,106 @@ public:
         size = originalSize * scale;
         color = olc::BLACK;
         speed = olc::vf2d(40,40);
-        lastPosition = position;
     }
 
     void Draw(olc::PixelGameEngine& pge){
         pge.SetDrawTarget(0,1);
         pge.DrawDecal(position, decal, olc::vf2d(scale,scale), color);
+        if(DEBUG) pge.DrawRect(position, size, olc::CYAN);
     }
 
     olc::vf2d GetPos() { return position; }
 
     void Move(sPath path, float fTime){
+        olc::vf2d lastPosition = position;
         position = position + speed*fTime;
  
-        
-        int intersect = path.NodesIntersect(position,position+olc::vf2d(size.x,0));
-        if(intersect == -1) intersect = path.NodesIntersect(position,position+olc::vf2d(0,size.y));
-        if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y));
-        if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y));
+        int intersectTopp = path.NodesIntersect(position,position+olc::vf2d(size.x,0));
+        int intersectBott = path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y));
+        int intersectLeft = path.NodesIntersect(position,position+olc::vf2d(0,size.y));
+        int intersectRite = path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y));
 
-        if(intersect != -1){
-            int direction = path.GetInDirection(intersect);
-            switch(direction){
-                case DIR_UP: {
-                    speed.y *=-1;
-                    break;
-                }
-                case DIR_DOWN: {
-                    speed.y *=-1;
-                    break;
-                }
-                case DIR_LEFT: {
-                    speed.x *=-1;
-                    break;
-                }
-                case DIR_RIGHT: {
-                    speed.x *=-1;
-                    break;
-                }
+        if(intersectTopp != -1){
+            if(intersectBott != -1) speed.x *= -1;
+            else if(intersectRite != -1) {
+                if((position.x+size.x - path.nodes[intersectTopp].x) < (path.nodes[path.Next(intersectTopp)].y - position.y)) speed.x *= -1;
+                else speed.y *= -1; 
             }
-            p2util::Echo(direction, speed);
+            else if(intersectLeft != -1) {
+                if((path.nodes[intersectTopp].x - position.x) < (path.nodes[intersectTopp].y - position.y)) speed.x *= -1;
+                else speed.y *= -1;
+            }
+            else {
+                speed.y *= -1;
+            }
+            position = lastPosition;
         }
-        else{
-            lastPosition = position;
+        else if(intersectBott != -1){
+            if(intersectRite != -1){
+                if((position.x+size.x - path.nodes[intersectBott].x) < (position.y+size.y - path.nodes[intersectBott].y)) speed.x *= -1; // problema
+                else speed.y *= -1;
+            }
+            else if(intersectLeft != -1){
+                if((path.nodes[intersectBott].x - position.x) < (position.y+size.y - path.nodes[path.Next(intersectBott)].y)) speed.x *= -1;
+                else speed.y *= -1;
+            }
+            else speed.y *= -1;
+            position = lastPosition;
         }
+        else if(intersectLeft != -1){
+            if(intersectRite != -1) speed.y *= -1;
+            else speed.x *= -1;
+            position = lastPosition;
+        }
+        else if(intersectRite != -1){
+            speed.x *= -1;
+            position = lastPosition;
+        }
+
+        if(DEBUG &&(intersectTopp != -1 || intersectBott != -1 || intersectLeft != -1 || intersectRite != -1)){
+            p2util::Echo(speed,false);
+            p2util::Echo("top",intersectTopp,0);
+            p2util::Echo("bottom",intersectBott,0);
+            p2util::Echo("left",intersectLeft,0);
+            p2util::Echo("right",intersectRite);
+        }
+        // int intersect = path.NodesIntersect(position,position+olc::vf2d(size.x,0));
+        // if(intersect == -1) intersect = path.NodesIntersect(position,position+olc::vf2d(0,size.y));
+        // if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y));
+        // if(intersect == -1) intersect = path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y));
+
+        // if(intersect != -1){    
+        //     p2util::Echo("arriba",path.NodesIntersect(position,position+olc::vf2d(size.x,0)),0);
+        //     p2util::Echo("izq",path.NodesIntersect(position,position+olc::vf2d(0,size.y)),0);
+        //     p2util::Echo("abajo",path.NodesIntersect(position+olc::vf2d(0,size.y),position+olc::vf2d(size.x,size.y)),0);
+        //     p2util::Echo("der",path.NodesIntersect(position+olc::vf2d(size.x,0),position+olc::vf2d(size.x,size.y)));
+        // }
+
+        // if(intersect != -1){
+        //     int direction = path.GetInDirection(intersect);
+        //     switch(direction){
+        //         case DIR_UP: {
+        //             speed.y *=-1;
+        //             break;
+        //         }
+        //         case DIR_DOWN: {
+        //             speed.y *=-1;
+        //             break;
+        //         }
+        //         case DIR_LEFT: {
+        //             speed.x *=-1;
+        //             break;
+        //         }
+        //         case DIR_RIGHT: {
+        //             speed.x *=-1;
+        //             break;
+        //         }
+        //     }
+        //     p2util::Echo(direction, speed);
+        // }
+        // else{
+        //     lastPosition = position;
+        // }
 
     }
 

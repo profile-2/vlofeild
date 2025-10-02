@@ -10,13 +10,13 @@
 namespace p2util{
     template<typename T>
     void Echo(const T& value, bool newLine = true) {
-        std::cout << value;
+        std::cout << value << " ";
         if (newLine) std::cout << std::endl;
     }
     
     template<typename T1, typename T2>
     void Echo(const T1& value1, const T2& value2, bool newLine = true) {
-        std::cout << value1 << " " << value2;
+        std::cout << value1 << " " << value2 << " ";
         if (newLine) std::cout << std::endl;
     }
     
