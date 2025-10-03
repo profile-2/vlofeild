@@ -464,12 +464,15 @@ private:
 
     std::vector<olc::vf2d> trail;
 
+    int lives;
+
 public:
     cShip(olc::vf2d vfPos, const float& fClampTop, const float& fClampBottom, const float& fClampLeft, const float& fClampRight): 
     pos(vfPos), lastPos(vfPos), clampT(fClampTop), clampB(fClampBottom), clampL(fClampLeft), clampR(fClampRight){
         direction = DIR_UP;
         lastDirection = DIR_UNDEFINED;
         snapToLine = false;
+        lives = 3;
     }
 
     cShip(olc::vf2d vfPos): pos(vfPos){
@@ -648,6 +651,18 @@ public:
         if(path.DoesIntersect(trail.back(),pos,vfBegin,vfEnd)) return true;
         return false;
     }
+
+    bool Destroy(const olc::vf2d &vfStart, const olc::vf2d &vfEnd, const bool &bIsVertical, const int& nReturnNode){
+        pos = trail[0];
+        trail.clear();
+        SnapToLine(vfStart, vfEnd, bIsVertical);
+        if(lives == 0) return false;
+        lives--;
+        return true;
+    }
+
+    int GetLives() { return lives; }
+    void SetLives(int nLives) { lives = nLives; }
 };
 
 #pragma region cEnemy
@@ -678,7 +693,7 @@ public:
 
     olc::vf2d GetPos() { return position; }
 
-    void Move(sPath& path, const float& fTime, cShip& ship){
+    bool Move(sPath& path, const float& fTime, cShip& ship){
         olc::vf2d lastPosition = position;
         position = position + speed*fTime;
  
@@ -734,9 +749,11 @@ public:
                                 ship.DoesIntersectTrail(position, position+olc::vf2d(0,size.y), path) ||
                                 ship.DoesIntersectTrail(position+size, position+olc::vf2d(size.x,0), path) ||
                                 ship.DoesIntersectTrail(position+size, position+olc::vf2d(0,size.y), path))){
-            //ship destroy
-            if(DEBUG) p2util::Echo("insersect", distColor(rd));
+            
+            if(DEBUG) p2util::Echo("intersect", distColor(rd));
+            return true; // destroy ship
         }
+        return false;
     }
 
     void SetPos(olc::vf2d vfPos) { position = vfPos; }
@@ -789,7 +806,7 @@ private:
     int nDeparture;
     int nArrival;
 
-    olc::vf2d vfTarget = olc::vf2d(SCREEN_WIDTH-20,20);
+    olc::vf2d vfTarget = olc::vf2d(SCREEN_WIDTH/2,20);
 
     olc::Sprite* sprBg_1;
     olc::Decal* dclBg_1;
@@ -846,6 +863,28 @@ public:
         SnapShipToLine(initialNode);
         PathUpdate(initialNode);
         path.currentNode = initialNode;
+
+        ship.SetLives(3);
+    }
+
+    void DrawLives(int nLives, olc::vf2d vfPos){
+        SetDrawTarget(0,1);
+        switch(nLives){
+            case 3:
+                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                DrawLine(vfPos, vfPos, olc::WHITE);
+                vfPos = vfPos-olc::vf2d(9,0);
+            
+            case 2:
+                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                DrawLine(vfPos, vfPos, olc::WHITE);
+                vfPos = vfPos-olc::vf2d(9,0);
+            
+            case 1:
+                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                DrawLine(vfPos, vfPos, olc::WHITE);
+            
+        }
     }
 
     bool OnUserCreate(){
@@ -929,7 +968,7 @@ public:
                         ship.AddTrail(ship.GetPos()); // adding arr pos
                         path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), boss->GetPos());
                         PathUpdate(path.currentNode);
-                        ship.SnapToLine(path.nodes[path.currentNode], path.nodes[path.Next(path.currentNode)], path.IsVertical(path.currentNode));
+                        ship.SnapToLine(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode));
                         path.Decompose();
                     }
                 }
@@ -938,7 +977,11 @@ public:
             ship.SetLastDirection(ship.GetDirection());
         }
 
-        boss->Move(path, fElapsedTime, ship);
+        if(boss->Move(path, fElapsedTime, ship)){
+            path.currentNode = nDeparture;
+            PathUpdate(path.currentNode);
+            ship.Destroy(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode), nDeparture);
+        }
 
         //test
         if(GetKey(olc::Key::R).bPressed) {
@@ -962,9 +1005,11 @@ public:
         boss->Draw(*this);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
 
-        fontFFS->Draw(*this, "Remaining:", {fFieldMarginLeft,fFieldMarginBottom+3}, 11);
-        fontFFS->Draw(*this, std::to_string(path.fAreaPercent*100), {10*8+fFieldMarginLeft,fFieldMarginBottom+3}, 5);
-        fontFFS->Draw(*this, "%", {15*8+fFieldMarginLeft,fFieldMarginBottom+3}, 1);
+        fontFFS->Draw(*this, "Shield:", {fFieldMarginLeft,fFieldMarginBottom+3}, 11);
+        fontFFS->Draw(*this, "999", {7*8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);
+        fontFFS->Draw(*this, std::to_string(100.0-path.fAreaPercent*100), {(float)(ScreenWidth()/2.0-8*2),fFieldMarginBottom+3}, 4);
+        fontFFS->Draw(*this, "%", {(float)(ScreenWidth()/2.0+8*2),fFieldMarginBottom+3}, 1);
+        DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-8-3,fFieldMarginBottom+2+4+2));
         return true;
     }
 };
