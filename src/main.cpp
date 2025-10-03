@@ -82,15 +82,11 @@ struct sPath{
         float point1AY = point1A.y < point1B.y ? point1A.y : point1B.y;
         float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
 
-        if(point2AX == point2BX){ //vertical
-            // if(point1AX == point1BX && point1AX == point2AX && point2AY <= point1BY && point2BY >= point1AY) // colinear
-            //     return true;
+        if(point2AX == point2BX){
             if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
                 return true;
         }
         else{
-            // if(point1AY == point2AY && point2AX <= point1BX && point2BX >= point1AX) // colinear
-            //     return true;
             if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
                 return true;
         }
@@ -642,6 +638,16 @@ public:
         }
         return false;
     }
+
+    bool DoesIntersectTrail(const olc::vf2d& vfBegin, const olc::vf2d& vfEnd, const sPath& path){
+        if(trail.size() > 1){
+            for(int i = 0; i < trail.size()-1; i++){
+                if(path.DoesIntersect(trail[i],trail[i+1],vfBegin,vfEnd)) return true;
+            }
+        }
+        if(path.DoesIntersect(trail.back(),pos,vfBegin,vfEnd)) return true;
+        return false;
+    }
 };
 
 #pragma region cEnemy
@@ -672,7 +678,7 @@ public:
 
     olc::vf2d GetPos() { return position; }
 
-    void Move(sPath path, float fTime){
+    void Move(sPath& path, const float& fTime, cShip& ship){
         olc::vf2d lastPosition = position;
         position = position + speed*fTime;
  
@@ -722,14 +728,14 @@ public:
             speed.x = speed.x < 0 ? -speedBase : speedBase;
             speed.y = speed.y < 0 ? -speedBase : speedBase;
             speed = speed * olc::vf2d(speedMod,2.0-speedMod);
+        }
 
-            if (DEBUG){
-                p2util::Echo(speed,0);
-                p2util::Echo("top",intersectTopp,0);
-                p2util::Echo("bottom",intersectBott,0);
-                p2util::Echo("left",intersectLeft,0);
-                p2util::Echo("right",intersectRite);
-            }
+        if(!ship.IsSnapd() && (ship.DoesIntersectTrail(position, position+olc::vf2d(size.x,0), path) ||
+                                ship.DoesIntersectTrail(position, position+olc::vf2d(0,size.y), path) ||
+                                ship.DoesIntersectTrail(position+size, position+olc::vf2d(size.x,0), path) ||
+                                ship.DoesIntersectTrail(position+size, position+olc::vf2d(0,size.y), path))){
+            //ship destroy
+            if(DEBUG) p2util::Echo("insersect", distColor(rd));
         }
     }
 
@@ -921,7 +927,7 @@ public:
                     }
                     else{
                         ship.AddTrail(ship.GetPos()); // adding arr pos
-                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), boss->GetPos()); // arr is line, graftPath return new arr node
+                        path.currentNode = path.GraftPath(nDeparture, line, ship.GetTrail(), boss->GetPos());
                         PathUpdate(path.currentNode);
                         ship.SnapToLine(path.nodes[path.currentNode], path.nodes[path.Next(path.currentNode)], path.IsVertical(path.currentNode));
                         path.Decompose();
@@ -932,7 +938,7 @@ public:
             ship.SetLastDirection(ship.GetDirection());
         }
 
-        boss->Move(path, fElapsedTime);
+        boss->Move(path, fElapsedTime, ship);
 
         //test
         if(GetKey(olc::Key::R).bPressed) {
