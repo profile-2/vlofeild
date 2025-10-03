@@ -22,7 +22,6 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Make target interact with trail
 Win and lose conditions
 
 bugs:
@@ -173,8 +172,8 @@ struct sPath{
         }
         
         if(nDeparture == -1 || vNodes.size() < 4){ // all non reflex, valid rectangle // escape condition in case something goes wrong -> "|| vNodes.size() < 4"
-            int top = 1000;
-            int left = 1000;
+            int top = 10000;
+            int left = 10000;
             int bottom = 0;
             int right = 0;
             for(auto r : vNodes){
@@ -310,12 +309,13 @@ struct sPath{
         return count;
     }
     int NodesIntersectCount(olc::vf2d point1A, olc::vf2d point1B) const { return NodesIntersectCount(point1A, point1B, nodes); }
+
     void DrawRectagles(olc::PixelGameEngine& pge, olc::Decal* decal, int layer, float fLeftMargin, float fTopMargin){
         float area = 0.0;
         if(rectangles.size() > 0){
             for(auto r : rectangles){
                 if(DEBUG){
-                    pge.SetDrawTarget(0, true);
+                    pge.SetDrawTarget(1, true);
                     pge.DrawRect(r.first, r.second-r.first, olc::MAGENTA);
                     pge.DrawLine(r.first,r.second, olc::MAGENTA);
                 }
@@ -685,8 +685,8 @@ public:
         speed = olc::vf2d(speedBase,speedBase);
     }
 
-    void Draw(olc::PixelGameEngine& pge){
-        pge.SetDrawTarget(0,1);
+    void Draw(olc::PixelGameEngine& pge, int nLayer){
+        pge.SetDrawTarget(nLayer,1);
         pge.DrawDecal(position, decal, olc::vf2d(scale,scale), color);
         if(DEBUG) pge.DrawRect(position, size, olc::CYAN);
     }
@@ -813,6 +813,7 @@ private:
     olc::Sprite* sprBg_2;
     olc::Decal* dclBg_2;
 
+    int layerMain;
     int layerBg_1;
     int layerBg_2;
 
@@ -868,7 +869,7 @@ public:
     }
 
     void DrawLives(int nLives, olc::vf2d vfPos){
-        SetDrawTarget(0,1);
+        SetDrawTarget(layerMain,1);
         switch(nLives){
             case 3:
                 DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
@@ -900,11 +901,15 @@ public:
         boss = new cEnemy(dclEnemy, olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10), olc::vf2d(1000,441), 0.05, 40.0);
 
         fontFFS = new sFont(dclFont, olc::vi2d(16,6), olc::vi2d(8,8), 
-                        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?/:\"'-.,_;#+()%~*  =·>");
+                        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?/:\"'-.,_;#+()%~*  =·>^");
 
         ResetField();
         path.Decompose();
 
+        Clear(olc::BLANK);
+        layerMain = CreateLayer();
+        SetDrawTarget(layerMain);
+        EnableLayer(layerMain, true);
         Clear(olc::BLANK);
         layerBg_1 = CreateLayer();
         SetDrawTarget(layerBg_1);
@@ -995,21 +1000,19 @@ public:
 
         path.DrawRectagles(*this, dclBg_1, layerBg_1, fFieldMarginLeft, fFieldMarginTop);
 
-        SetDrawTarget(0, true);
+        SetDrawTarget(layerMain, true);
         path.DrawAll(*this, olc::Pixel(192,192,192));
         if(DEBUG && path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
         if(DEBUG) DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
         ship.Draw(*this);
-        // DrawLine(vfTarget, vfTarget, olc::RED);
-        // DrawRect(vfTarget-3, olc::vi2d(6,6), olc::RED);
-        boss->Draw(*this);
+        boss->Draw(*this, layerMain);
         if(!ship.IsSnapd()) ship.DrawTrail(*this);
 
-        fontFFS->Draw(*this, "Shield:", {fFieldMarginLeft,fFieldMarginBottom+3}, 11);
-        fontFFS->Draw(*this, "999", {7*8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);
+        fontFFS->Draw(*this, "^", {fFieldMarginLeft,fFieldMarginBottom+3}, 1);
+        fontFFS->Draw(*this, "99", {8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);  //placeholder
         fontFFS->Draw(*this, std::to_string(100.0-path.fAreaPercent*100), {(float)(ScreenWidth()/2.0-8*2),fFieldMarginBottom+3}, 4);
         fontFFS->Draw(*this, "%", {(float)(ScreenWidth()/2.0+8*2),fFieldMarginBottom+3}, 1);
-        DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-8-3,fFieldMarginBottom+2+4+2));
+        DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-4,fFieldMarginBottom+8));
         return true;
     }
 };
