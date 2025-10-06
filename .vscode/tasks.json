@@ -16,7 +16,7 @@
                 "-lgdiplus",
                 "-ldwmapi",
                 "-lgdi32",
-                "-std=c++17"
+                "-std=c++20"
 			],
 			"options": {
 				"cwd": "C:/msys64/ucrt64/bin"

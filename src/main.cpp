@@ -1,6 +1,10 @@
+
 #define OLC_PGE_APPLICATION
+#define OLC_PGEX_MINIAUDIO
+
 #include <random>
 #include "OneLoneCoder/olcPixelGameEngine.h"
+#include "Moros1138/olcPGEX_MiniAudio.h"
 #include "profile_2/p2util.h"
 
 #define SCREEN_WIDTH    300
@@ -693,7 +697,7 @@ public:
 
     olc::vf2d GetPos() { return position; }
 
-    bool Move(sPath& path, const float& fTime, cShip& ship){
+    bool Move(sPath& path, const float& fTime, cShip& ship, olc::MiniAudio& audio){
         olc::vf2d lastPosition = position;
         position = position + speed*fTime;
  
@@ -743,6 +747,8 @@ public:
             speed.x = speed.x < 0 ? -speedBase : speedBase;
             speed.y = speed.y < 0 ? -speedBase : speedBase;
             speed = speed * olc::vf2d(speedMod,2.0-speedMod);
+
+            audio.Play("assets/ding.wav");
         }
 
         if(!ship.IsSnapd() && (ship.DoesIntersectTrail(position, position+olc::vf2d(size.x,0), path) ||
@@ -828,6 +834,11 @@ private:
     bool bDestroyAnim = false;
     float fDestroyAnimTime;
 
+    olc::MiniAudio maControl;    
+    int sndDing;
+    int sndBash;
+    int sndZap;
+
 public:
     GAME(){
         sAppName = "QuiX";
@@ -910,7 +921,6 @@ public:
         DrawCircle(vfPos+olc::vf2d(offsetPos+pos*interpol[index]*sixtyCos,(offsetPos+pos*interpol[index]*sixtySin)*-1),size*interpol[index]+offsetSize,col[index]);
         DrawCircle(vfPos+olc::vf2d((offsetPos+pos*interpol[index]*sixtyCos)*-1,(offsetPos+pos*interpol[index]*sixtySin)*-1),size*interpol[index]+offsetSize,col[index]);
 
-
         return true;
     }
 
@@ -945,7 +955,11 @@ public:
         SetDrawTarget(layerBg_2);
         EnableLayer(layerBg_2, true);
         Clear(olc::BLANK);
-        
+
+        sndDing = maControl.LoadSound("assets/ding.wav");
+        sndBash = maControl.LoadSound("assets/bash.wav");
+        sndZap = maControl.LoadSound("assets/zap.wav");
+
         return true;
     }
 
@@ -1008,12 +1022,14 @@ public:
             ship.SetLastDirection(ship.GetDirection());
         }
 
-        if(!bDestroyAnim && boss->Move(path, fElapsedTime, ship)){
+        if(!bDestroyAnim && boss->Move(path, fElapsedTime, ship, maControl)){
             path.currentNode = nDeparture;
             PathUpdate(path.currentNode);
             ship.Destroy(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode), nDeparture);
             bDestroyAnim = true;
             fDestroyAnimTime = 0;
+
+            maControl.Play(sndBash);
         }
         else{
             fDestroyAnimTime += fElapsedTime;
@@ -1028,8 +1044,7 @@ public:
         }
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         if(GetKey(olc::Key::T).bPressed){
-            bDestroyAnim = true;
-            fDestroyAnimTime = 0;
+            maControl.Play(sndDing);
 
         }
         
