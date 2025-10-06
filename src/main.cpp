@@ -825,6 +825,9 @@ private:
     olc::Decal* dclFont;
     sFont* fontFFS;
 
+    bool bDestroyAnim = false;
+    float fDestroyAnimTime;
+
 public:
     GAME(){
         sAppName = "QuiX";
@@ -888,6 +891,29 @@ public:
         }
     }
 
+    bool DrawDestruction(const olc::vf2d& vfPos, const float& fTime){
+        const float interpol[10] = {0, 0.271, 0.488, 0.657, 0.784, 0.875, 0.936, 0.973, 0.992, 0.999};
+        const olc::Pixel col[10] = {{255,255,255},{255,255,255},{255,255,255},{255,255,0},{255,128,0},{192,0,0},{128,0,0},{64,0,0},{0,0,0},{0,0,0}};
+        const float sixtySin = 0.86602540378443864676372317075294;
+        const float sixtyCos = 0.5;
+        const float offsetPos = 0.50;
+        const float offsetSize = 0.25;
+        const int pos = 8;
+        const int size = 5.5;
+        int index = fTime*1000/128;
+
+        if(index == 10) return false;
+        DrawCircle(vfPos+olc::vf2d(offsetPos+pos*interpol[index],0),size*interpol[index]+offsetSize,col[index]);
+        DrawCircle(vfPos+olc::vf2d((offsetPos+pos*interpol[index])*-1,0),size*interpol[index]+offsetSize,col[index]);
+        DrawCircle(vfPos+olc::vf2d(offsetPos+pos*interpol[index]*sixtyCos,offsetPos+pos*interpol[index]*sixtySin),size*interpol[index]+offsetSize,col[index]);
+        DrawCircle(vfPos+olc::vf2d((offsetPos+pos*interpol[index]*sixtyCos)*-1,offsetPos+pos*interpol[index]*sixtySin),size*interpol[index]+offsetSize,col[index]);
+        DrawCircle(vfPos+olc::vf2d(offsetPos+pos*interpol[index]*sixtyCos,(offsetPos+pos*interpol[index]*sixtySin)*-1),size*interpol[index]+offsetSize,col[index]);
+        DrawCircle(vfPos+olc::vf2d((offsetPos+pos*interpol[index]*sixtyCos)*-1,(offsetPos+pos*interpol[index]*sixtySin)*-1),size*interpol[index]+offsetSize,col[index]);
+
+
+        return true;
+    }
+
     bool OnUserCreate(){
         sprBg_1 = new olc::Sprite("assets/ship_bg_day.png");
         dclBg_1 = new olc::Decal(sprBg_1);
@@ -934,7 +960,7 @@ public:
         else if(GetKey(olc::Key::LEFT).bHeld) direction = DIR_LEFT;
         else if(GetKey(olc::Key::RIGHT).bHeld) direction = DIR_RIGHT;
 
-        if (direction != DIR_UNDEFINED){
+        if (direction != DIR_UNDEFINED && !bDestroyAnim){
             if(GetKey(olc::Key::SPACE).bPressed && ship.IsSnapd() && path.InDirection(direction, ship.GetPos(), path.currentNode)){
                 ship.ReleaseFromLine(); // ship.snapedToLine = false;
                 nDeparture = path.currentNode;
@@ -982,18 +1008,30 @@ public:
             ship.SetLastDirection(ship.GetDirection());
         }
 
-        if(boss->Move(path, fElapsedTime, ship)){
+        if(!bDestroyAnim && boss->Move(path, fElapsedTime, ship)){
             path.currentNode = nDeparture;
             PathUpdate(path.currentNode);
             ship.Destroy(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode), nDeparture);
+            bDestroyAnim = true;
+            fDestroyAnimTime = 0;
+        }
+        else{
+            fDestroyAnimTime += fElapsedTime;
+            //if(fDestroyAnimTime > 1) bDestroyAnim = false;
         }
 
         //test
         if(GetKey(olc::Key::R).bPressed) {
             ResetField();
             boss->SetPos(olc::vf2d(10,100));
+            bDestroyAnim = false;
         }
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
+        if(GetKey(olc::Key::T).bPressed){
+            bDestroyAnim = true;
+            fDestroyAnimTime = 0;
+
+        }
         
         SetDrawTarget(layerBg_2);
         DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
@@ -1004,9 +1042,14 @@ public:
         path.DrawAll(*this, olc::Pixel(192,192,192));
         if(DEBUG && path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
         if(DEBUG) DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
-        ship.Draw(*this);
         boss->Draw(*this, layerMain);
-        if(!ship.IsSnapd()) ship.DrawTrail(*this);
+        if(!bDestroyAnim){
+            ship.Draw(*this);
+            if(!ship.IsSnapd()) ship.DrawTrail(*this);
+        }
+        else{
+            bDestroyAnim = DrawDestruction(ship.GetLastPos(), fDestroyAnimTime);
+        }
 
         fontFFS->Draw(*this, "^", {fFieldMarginLeft,fFieldMarginBottom+3}, 1);
         fontFFS->Draw(*this, "99", {8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);  //placeholder
