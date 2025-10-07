@@ -844,7 +844,7 @@ private:
     };
     int nGameState;
     float fTimer;
-    float fTargetScore;
+    int nTargetScore;
 
     olc::MiniAudio maControl;    
     int sndDing;
@@ -976,7 +976,7 @@ public:
 
         nGameState = E_LEVEL_START;
         fTimer = 0;
-        fTargetScore = 19.9;
+        nTargetScore = 20;
 
         return true;
     }
@@ -1036,7 +1036,7 @@ public:
                         path.Decompose();
                     }
                     maControl.Stop(sndZap);
-                    if(path.fAreaPercent*100 < fTargetScore) nGameState = E_GAME_WON;
+                    if((int)(path.fAreaPercent*100) < nTargetScore) nGameState = E_GAME_WON;
                 }
             }
             ship.SetLastPos(ship.GetPos());
