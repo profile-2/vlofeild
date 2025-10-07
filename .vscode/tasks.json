@@ -28,10 +28,20 @@
 			"detail": "compiler: C:/msys64/ucrt64/bin/g++.exe"
 		},
         {
+            "label": "Compile & Run EXE",
+            "type": "shell",
+            "command": "${fileDirname}\\..\\bin\\${fileBasenameNoExtension}.exe",
+            "dependsOn": "C/C++: g++.exe build active file",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "detail": "Run the compiled executable"
+        },
+        {
             "label": "Run EXE",
             "type": "shell",
             "command": "${fileDirname}\\..\\bin\\${fileBasenameNoExtension}.exe",
-            "dependsOn": "Build and Run",
             "group": {
                 "kind": "test",
                 "isDefault": true

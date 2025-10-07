@@ -26,7 +26,9 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Win and lose conditions
+Shield
+Score
+Levels
 
 bugs:
 Once the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
@@ -697,7 +699,7 @@ public:
 
     olc::vf2d GetPos() { return position; }
 
-    bool Move(sPath& path, const float& fTime, cShip& ship, olc::MiniAudio& audio){
+    bool Move(sPath& path, const float& fTime, cShip& ship, olc::MiniAudio& audio, const int& sndBounce){
         olc::vf2d lastPosition = position;
         position = position + speed*fTime;
  
@@ -748,7 +750,8 @@ public:
             speed.y = speed.y < 0 ? -speedBase : speedBase;
             speed = speed * olc::vf2d(speedMod,2.0-speedMod);
 
-            audio.Play("assets/ding.wav");
+            if(audio.IsPlaying(sndBounce)) audio.Stop(sndBounce);
+            audio.Play(sndBounce);
         }
 
         if(!ship.IsSnapd() && (ship.DoesIntersectTrail(position, position+olc::vf2d(size.x,0), path) ||
@@ -831,8 +834,17 @@ private:
     olc::Decal* dclFont;
     sFont* fontFFS;
 
-    bool bDestroyAnim = false;
-    float fDestroyAnimTime;
+    enum eState{
+        E_LEVEL_START,
+        E_NORMAL,
+        E_SHIP_DESTROY_ANIM,
+        E_BOSS_DESTROY_ANIM,
+        E_GAME_LOST,
+        E_GAME_WON
+    };
+    int nGameState;
+    float fTimer;
+    float fTargetScore;
 
     olc::MiniAudio maControl;    
     int sndDing;
@@ -959,7 +971,12 @@ public:
         sndDing = maControl.LoadSound("assets/ding.wav");
         sndBash = maControl.LoadSound("assets/bash.wav");
         sndZap = maControl.LoadSound("assets/zap.wav");
+        maControl.SetVolume(sndDing, 0.50);
         maControl.SetVolume(sndZap, 0.25);
+
+        nGameState = E_LEVEL_START;
+        fTimer = 0;
+        fTargetScore = 19.9;
 
         return true;
     }
@@ -975,7 +992,7 @@ public:
         else if(GetKey(olc::Key::LEFT).bHeld) direction = DIR_LEFT;
         else if(GetKey(olc::Key::RIGHT).bHeld) direction = DIR_RIGHT;
 
-        if (direction != DIR_UNDEFINED && !bDestroyAnim){
+        if (nGameState == E_NORMAL && direction != DIR_UNDEFINED){
             if(GetKey(olc::Key::SPACE).bPressed && ship.IsSnapd() && path.InDirection(direction, ship.GetPos(), path.currentNode)){
                 ship.ReleaseFromLine(); // ship.snapedToLine = false;
                 nDeparture = path.currentNode;
@@ -1019,37 +1036,38 @@ public:
                         path.Decompose();
                     }
                     maControl.Stop(sndZap);
+                    if(path.fAreaPercent*100 < fTargetScore) nGameState = E_GAME_WON;
                 }
             }
             ship.SetLastPos(ship.GetPos());
             ship.SetLastDirection(ship.GetDirection());
         }
 
-        if(!bDestroyAnim && boss->Move(path, fElapsedTime, ship, maControl)){
+        if(nGameState == E_NORMAL && boss->Move(path, fElapsedTime, ship, maControl, sndDing)){
             path.currentNode = nDeparture;
             PathUpdate(path.currentNode);
             ship.Destroy(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode), nDeparture);
-            bDestroyAnim = true;
-            fDestroyAnimTime = 0;
+            nGameState = E_SHIP_DESTROY_ANIM;
+            fTimer = 0;
 
             maControl.Stop(sndZap);
             maControl.Play(sndBash);
         }
         else{
-            fDestroyAnimTime += fElapsedTime;
-            //if(fDestroyAnimTime > 1) bDestroyAnim = false;
+            fTimer += fElapsedTime;
         }
 
         //test
         if(GetKey(olc::Key::R).bPressed) {
             ResetField();
             boss->SetPos(olc::vf2d(10,100));
-            bDestroyAnim = false;
+            nGameState = E_NORMAL;
+            SetDrawTarget(0,1);
+            Clear(olc::BLANK);
         }
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         if(GetKey(olc::Key::T).bPressed){
             maControl.Play(sndDing);
-
         }
         
         SetDrawTarget(layerBg_2);
@@ -1062,12 +1080,16 @@ public:
         if(DEBUG && path.currentNode != -1) path.Draw(*this, path.currentNode, olc::GREEN);
         if(DEBUG) DrawLine(path.nodes[0], path.nodes[0], olc::BLUE);
         boss->Draw(*this, layerMain);
-        if(!bDestroyAnim){
+        
+        if(nGameState == E_NORMAL){
             ship.Draw(*this);
             if(!ship.IsSnapd()) ship.DrawTrail(*this);
         }
-        else{
-            bDestroyAnim = DrawDestruction(ship.GetLastPos(), fDestroyAnimTime);
+        else if(nGameState == E_SHIP_DESTROY_ANIM){
+            if(!DrawDestruction(ship.GetLastPos(), fTimer)) {
+                if(ship.GetLives() == 0) nGameState = E_GAME_LOST;
+                else nGameState = E_NORMAL;
+            }
         }
 
         fontFFS->Draw(*this, "^", {fFieldMarginLeft,fFieldMarginBottom+3}, 1);
@@ -1075,6 +1097,29 @@ public:
         fontFFS->Draw(*this, std::to_string(100.0-path.fAreaPercent*100), {(float)(ScreenWidth()/2.0-8*2),fFieldMarginBottom+3}, 4);
         fontFFS->Draw(*this, "%", {(float)(ScreenWidth()/2.0+8*2),fFieldMarginBottom+3}, 1);
         DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-4,fFieldMarginBottom+8));
+
+        if(nGameState == E_LEVEL_START){
+            SetDrawTarget(0,1);
+            Clear(olc::Pixel(0,0,0,96));
+            fontFFS->Draw(*this, "Level:", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 6);
+            fontFFS->Draw(*this, "00", olc::vf2d(ScreenWidth()/2+3*8, ScreenHeight()/2-10),2);
+            fTimer += fElapsedTime;
+            if(fTimer > 3) {
+                nGameState = E_NORMAL;
+                SetDrawTarget(0,1);
+                Clear(olc::BLANK);
+            }
+        }
+        else if(nGameState == E_GAME_WON){
+            SetDrawTarget(0,1);
+            Clear(olc::Pixel(0,0,0,96));
+            fontFFS->Draw(*this, "Level Complete", olc::vf2d(ScreenWidth()/2-7*8, ScreenHeight()/2-10), 14);
+        }
+        else if(nGameState == E_GAME_LOST){
+            SetDrawTarget(0,1);
+            Clear(olc::Pixel(0,0,0,96));
+            fontFFS->Draw(*this, "Game Over YEEEEAH!", olc::vf2d(ScreenWidth()/2-9*8, ScreenHeight()/2-10), 18);
+        }
         return true;
     }
 };
