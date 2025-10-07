@@ -959,6 +959,7 @@ public:
         sndDing = maControl.LoadSound("assets/ding.wav");
         sndBash = maControl.LoadSound("assets/bash.wav");
         sndZap = maControl.LoadSound("assets/zap.wav");
+        maControl.SetVolume(sndZap, 0.25);
 
         return true;
     }
@@ -982,6 +983,7 @@ public:
                 ship.ClearTrail();
                 ship.AddTrail(ship.GetPos()); // add departure coord
                 lastPosSnapped = ship.GetPos();
+                maControl.Play(sndZap, true);
             }
 
             if(ship.GetPos() == vfCurrEnd && direction == nCurrEndDir){
@@ -1016,6 +1018,7 @@ public:
                         ship.SnapToLine(vfCurrStart, vfCurrEnd, path.IsVertical(path.currentNode));
                         path.Decompose();
                     }
+                    maControl.Stop(sndZap);
                 }
             }
             ship.SetLastPos(ship.GetPos());
@@ -1029,6 +1032,7 @@ public:
             bDestroyAnim = true;
             fDestroyAnimTime = 0;
 
+            maControl.Stop(sndZap);
             maControl.Play(sndBash);
         }
         else{
