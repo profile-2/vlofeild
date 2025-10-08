@@ -930,21 +930,25 @@ public:
 
     void DrawLives(int nLives, olc::vf2d vfPos){
         SetDrawTarget(layerMain,1);
-        switch(nLives){
-            case 3:
-                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
-                DrawLine(vfPos, vfPos, olc::WHITE);
-                vfPos = vfPos-olc::vf2d(9,0);
-            
-            case 2:
-                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
-                DrawLine(vfPos, vfPos, olc::WHITE);
-                vfPos = vfPos-olc::vf2d(9,0);
-            
-            case 1:
-                DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
-                DrawLine(vfPos, vfPos, olc::WHITE);
-            
+        if(nLives > 3){
+            fontFFS->Draw(*this, std::string("Lives: ").append(std::to_string(nLives)), vfPos - olc::vf2d(64,5), 8);
+        }
+        else{
+            switch(nLives){
+                case 3:
+                    DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                    DrawLine(vfPos, vfPos, olc::WHITE);
+                    vfPos = vfPos-olc::vf2d(9,0);
+                
+                case 2:
+                    DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                    DrawLine(vfPos, vfPos, olc::WHITE);
+                    vfPos = vfPos-olc::vf2d(9,0);
+                
+                case 1:
+                    DrawTriangle(vfPos + olc::vf2d(0,-5), vfPos + olc::vf2d(3,2), vfPos + olc::vf2d(-3,2), olc::WHITE);
+                    DrawLine(vfPos, vfPos, olc::WHITE);
+            }
         }
     }
 
@@ -972,7 +976,8 @@ public:
 
     void ScoreArea(float fArea){
         if(fArea == fLastArea) return;
-        nScore += (fLastArea-fArea)*10;
+        int score = fLastArea-fArea;
+        nScore += score*10;
         fLastArea = fArea;
     }
 
@@ -1114,13 +1119,17 @@ public:
             boss->SetPos(olc::vf2d(10,100));
             nGameState = E_NORMAL;
             fTimer = 0;
+            nScore = 0;
+            fLastArea = 100.0;
             SetDrawTarget(0,1);
             Clear(olc::BLANK);
         }
-        if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         if(GetKey(olc::Key::T).bPressed){
             ship.SetShield(1);
+            ship.SetLives(4);
         }
+
+        if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         
         SetDrawTarget(layerBg_2);
         DrawDecal(olc::vf2d(fFieldMarginLeft,fFieldMarginTop), dclBg_2);
