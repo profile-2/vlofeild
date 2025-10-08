@@ -8,7 +8,7 @@
 #include "profile_2/p2util.h"
 
 #define SCREEN_WIDTH    300
-#define SCREEN_HEIGHT   210
+#define SCREEN_HEIGHT   220
 #define PIXEL_SIZE      4
 #define DEBUG           0
 
@@ -37,6 +37,29 @@ std::random_device rd;
 std::mt19937 rng(rd());
 std::uniform_int_distribution<int> distColor(0, 128);
 std::uniform_real_distribution<float> distSpeed(0.5,1.5);
+
+bool DoesIntersect(olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B) {
+        
+    float point2AX = point2A.x < point2B.x ? point2A.x : point2B.x;
+    float point2BX = point2A.x > point2B.x ? point2A.x : point2B.x;
+    float point2AY = point2A.y < point2B.y ? point2A.y : point2B.y;
+    float point2BY = point2A.y > point2B.y ? point2A.y : point2B.y;
+
+    float point1AX = point1A.x < point1B.x ? point1A.x : point1B.x;
+    float point1BX = point1A.x > point1B.x ? point1A.x : point1B.x;
+    float point1AY = point1A.y < point1B.y ? point1A.y : point1B.y;
+    float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
+
+    if(point2AX == point2BX){
+        if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
+            return true;
+    }
+    else{
+        if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
+            return true;
+    }
+    return false;
+}
 
 #pragma region sPath
 struct sPath{
@@ -74,28 +97,7 @@ struct sPath{
         return 0; 
     }
 
-    bool DoesIntersect(olc::vf2d point1A, olc::vf2d point1B, olc::vf2d point2A, olc::vf2d point2B) const {
-        
-        float point2AX = point2A.x < point2B.x ? point2A.x : point2B.x;
-        float point2BX = point2A.x > point2B.x ? point2A.x : point2B.x;
-        float point2AY = point2A.y < point2B.y ? point2A.y : point2B.y;
-        float point2BY = point2A.y > point2B.y ? point2A.y : point2B.y;
-
-        float point1AX = point1A.x < point1B.x ? point1A.x : point1B.x;
-        float point1BX = point1A.x > point1B.x ? point1A.x : point1B.x;
-        float point1AY = point1A.y < point1B.y ? point1A.y : point1B.y;
-        float point1BY = point1A.y > point1B.y ? point1A.y : point1B.y;
-
-        if(point2AX == point2BX){
-            if(point1AX <= point2AX && point2AX <= point1BX && point2AY <= point1AY && point1AY <= point2BY)
-                return true;
-        }
-        else{
-            if(point1AY <= point2AY && point2AY <= point1BY && point2AX <= point1AX && point1AX <= point2BX)
-                return true;
-        }
-        return false;
-    }
+    
 
     void Draw(olc::PixelGameEngine& pge, int node, olc::Pixel color = olc::WHITE){
         pge.DrawLine(nodes[node], nodes[Next(node)], color);
@@ -658,10 +660,10 @@ public:
     bool DoesIntersectTrail(const olc::vf2d& vfBegin, const olc::vf2d& vfEnd, const sPath& path){
         if(trail.size() > 1){
             for(int i = 0; i < trail.size()-1; i++){
-                if(path.DoesIntersect(trail[i],trail[i+1],vfBegin,vfEnd)) return true;
+                if(DoesIntersect(trail[i],trail[i+1],vfBegin,vfEnd)) return true;
             }
         }
-        if(path.DoesIntersect(trail.back(),pos,vfBegin,vfEnd)) return true;
+        if(DoesIntersect(trail.back(),pos,vfBegin,vfEnd)) return true;
         return false;
     }
 
@@ -783,10 +785,10 @@ public:
             return true; // destroy ship
         }
         if(ship.IsSnapd() && !ship.ShieldIsEnabled()){
-            if(path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(size.x,0)) ||
-                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(0,size.y)) ||
-                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(size.x,0)) ||
-                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(0,size.y))){
+            if(DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(size.x,0)) ||
+                DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(0,size.y)) ||
+                DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(size.x,0)) ||
+                DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(0,size.y))){
                     return true; // destroy ship
                 }
         }
@@ -829,7 +831,7 @@ class GAME : public olc::PixelGameEngine{
 private:
     const float fFieldMarginLeft = 5;
     const float fFieldMarginRight = SCREEN_WIDTH - 5;
-    const float fFieldMarginTop = 5;
+    const float fFieldMarginTop = 15;
     const float fFieldMarginBottom = SCREEN_HEIGHT - 15;
 
     cShip ship = cShip(olc::vf2d(SCREEN_WIDTH/2, SCREEN_HEIGHT/2), fFieldMarginTop, fFieldMarginBottom, fFieldMarginLeft, fFieldMarginRight);
@@ -878,6 +880,9 @@ private:
     int sndDing;
     int sndBash;
     int sndZap;
+
+    int nScore = 0;
+    float fLastArea = 100.0;
 
 public:
     GAME(){
@@ -963,6 +968,12 @@ public:
         DrawCircle(vfPos+olc::vf2d((offsetPos+pos*interpol[index]*sixtyCos)*-1,(offsetPos+pos*interpol[index]*sixtySin)*-1),size*interpol[index]+offsetSize,col[index]);
 
         return true;
+    }
+
+    void ScoreArea(float fArea){
+        if(fArea == fLastArea) return;
+        nScore += (fLastArea-fArea)*10;
+        fLastArea = fArea;
     }
 
     bool OnUserCreate(){
@@ -1065,7 +1076,6 @@ public:
                         path.Decompose();
                     }
                     maControl.Stop(sndZap);
-                    if((int)(path.fAreaPercent*100) <= nTargetScore) nGameState = E_GAME_WON;
                 }
             }
             ship.SetLastPos(ship.GetPos());
@@ -1092,6 +1102,10 @@ public:
                 fTimer = 0;
                 ship.ShieldDecrease();
             }
+        }
+                    
+        if((int)(path.fAreaPercent*100) <= nTargetScore) {
+            nGameState = E_GAME_WON;
         }
 
         //test
@@ -1132,6 +1146,12 @@ public:
                 }
             }
         }
+
+        ScoreArea(path.fAreaPercent*100);
+
+        int scoreLenght = std::to_string(nScore).size();
+        fontFFS->Draw(*this, "00000000", {(float)(ScreenWidth()/2.0-4*8), fFieldMarginTop-10}, 8-scoreLenght);
+        fontFFS->Draw(*this, std::to_string(nScore), {(float)(ScreenWidth()/2.0+(4-scoreLenght)*8), fFieldMarginTop-10}, 8);
 
         fontFFS->Draw(*this, "^", {fFieldMarginLeft,fFieldMarginBottom+3}, 1);
         fontFFS->Draw(*this, std::to_string(ship.GetShield()), {8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);  //placeholder
