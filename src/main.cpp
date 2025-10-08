@@ -26,7 +26,6 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Shield
 Score
 Levels
 
@@ -472,6 +471,9 @@ private:
 
     int lives;
 
+    int shield;
+    bool shieldEnabled;
+
 public:
     cShip(olc::vf2d vfPos, const float& fClampTop, const float& fClampBottom, const float& fClampLeft, const float& fClampRight): 
     pos(vfPos), lastPos(vfPos), clampT(fClampTop), clampB(fClampBottom), clampL(fClampLeft), clampR(fClampRight){
@@ -479,6 +481,8 @@ public:
         lastDirection = DIR_UNDEFINED;
         snapToLine = false;
         lives = 3;
+        shield = 99;
+        shieldEnabled = true;
     }
 
     cShip(olc::vf2d vfPos): pos(vfPos){
@@ -539,6 +543,7 @@ public:
 
     void SnapToLine(const olc::vf2d& start, const olc::vf2d& end, const bool& verticalLine){
         snapToLine = true;
+        if(shield > 0) shieldEnabled = true;
         if(verticalLine){
             snapL = start.x;
             snapR = start.x;
@@ -563,6 +568,7 @@ public:
 
     void ReleaseFromLine(){
         snapToLine = false;
+        shieldEnabled = false;
     }
 
     void Draw(olc::PixelGameEngine& pge){
@@ -604,6 +610,7 @@ public:
 
         pge.DrawLine(pos, pos, color);
         pge.DrawTriangle(vertA,vertB,vertC,color);
+        if(shieldEnabled) pge.DrawCircle(pos, 5, olc::Pixel(0,255,128));
     }
 
     void SetLastPos(const olc::vf2d& vfLastPos) { lastPos = vfLastPos; }
@@ -664,11 +671,24 @@ public:
         SnapToLine(vfStart, vfEnd, bIsVertical);
         if(lives == 0) return false;
         lives--;
+        shieldEnabled = true;
+        shield = 99;
         return true;
     }
 
     int GetLives() { return lives; }
     void SetLives(int nLives) { lives = nLives; }
+
+    bool ShieldIsEnabled() { return shieldEnabled; }
+    void ShieldEnable(bool bEnable = true) { shieldEnabled = bEnable; }
+    bool ShieldDecrease() {
+        if(shield > 0) shield --;
+        if(shield > 0) return true;
+        shieldEnabled = false;
+        return false;
+    }
+    void SetShield(int nShield) { shield = nShield; }
+    int GetShield() { return shield; }
 };
 
 #pragma region cEnemy
@@ -761,6 +781,14 @@ public:
             
             if(DEBUG) p2util::Echo("intersect", distColor(rd));
             return true; // destroy ship
+        }
+        if(ship.IsSnapd() && !ship.ShieldIsEnabled()){
+            if(path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(size.x,0)) ||
+                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position, position+olc::vf2d(0,size.y)) ||
+                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(size.x,0)) ||
+                path.DoesIntersect(ship.GetPos()-0.5,ship.GetPos()+0.5,position+size, position+olc::vf2d(0,size.y))){
+                    return true; // destroy ship
+                }
         }
         return false;
     }
@@ -892,6 +920,7 @@ public:
         path.currentNode = initialNode;
 
         ship.SetLives(3);
+        ship.SetShield(99);
     }
 
     void DrawLives(int nLives, olc::vf2d vfPos){
@@ -1036,7 +1065,7 @@ public:
                         path.Decompose();
                     }
                     maControl.Stop(sndZap);
-                    if((int)(path.fAreaPercent*100) < nTargetScore) nGameState = E_GAME_WON;
+                    if((int)(path.fAreaPercent*100) <= nTargetScore) nGameState = E_GAME_WON;
                 }
             }
             ship.SetLastPos(ship.GetPos());
@@ -1057,17 +1086,26 @@ public:
             fTimer += fElapsedTime;
         }
 
+        if(nGameState == E_NORMAL && ship.ShieldIsEnabled()){
+            fTimer += fElapsedTime;
+            if(fTimer > 1){
+                fTimer = 0;
+                ship.ShieldDecrease();
+            }
+        }
+
         //test
         if(GetKey(olc::Key::R).bPressed) {
             ResetField();
             boss->SetPos(olc::vf2d(10,100));
             nGameState = E_NORMAL;
+            fTimer = 0;
             SetDrawTarget(0,1);
             Clear(olc::BLANK);
         }
         if(GetKey(olc::Key::ESCAPE).bPressed) return false;
         if(GetKey(olc::Key::T).bPressed){
-            maControl.Play(sndDing);
+            ship.SetShield(1);
         }
         
         SetDrawTarget(layerBg_2);
@@ -1088,12 +1126,15 @@ public:
         else if(nGameState == E_SHIP_DESTROY_ANIM){
             if(!DrawDestruction(ship.GetLastPos(), fTimer)) {
                 if(ship.GetLives() == 0) nGameState = E_GAME_LOST;
-                else nGameState = E_NORMAL;
+                else {
+                    nGameState = E_NORMAL;
+                    fTimer = 0;
+                }
             }
         }
 
         fontFFS->Draw(*this, "^", {fFieldMarginLeft,fFieldMarginBottom+3}, 1);
-        fontFFS->Draw(*this, "99", {8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);  //placeholder
+        fontFFS->Draw(*this, std::to_string(ship.GetShield()), {8+fFieldMarginLeft,fFieldMarginBottom+3}, 11);  //placeholder
         fontFFS->Draw(*this, std::to_string(100.0-path.fAreaPercent*100), {(float)(ScreenWidth()/2.0-8*2),fFieldMarginBottom+3}, 4);
         fontFFS->Draw(*this, "%", {(float)(ScreenWidth()/2.0+8*2),fFieldMarginBottom+3}, 1);
         DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-4,fFieldMarginBottom+8));
@@ -1106,6 +1147,7 @@ public:
             fTimer += fElapsedTime;
             if(fTimer > 3) {
                 nGameState = E_NORMAL;
+                fTimer = 0;
                 SetDrawTarget(0,1);
                 Clear(olc::BLANK);
             }
