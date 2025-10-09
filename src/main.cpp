@@ -826,6 +826,13 @@ struct sFont{
     }
 };
 
+struct sLevel {
+    int speed;
+    int target;
+
+    sLevel(int nSpeed, int nTarget): speed(nSpeed), target(nTarget) {}
+};
+
 class GAME : public olc::PixelGameEngine{
 #pragma region GAME_private
 private:
@@ -880,9 +887,16 @@ private:
     int sndDing;
     int sndBash;
     int sndZap;
+    int sndGameOver;
 
     int nScore = 0;
     float fLastArea = 100.0;
+
+    const sLevel levels[4] = {sLevel(40,20), 
+                                sLevel(50,15), 
+                                sLevel(60,10), 
+                                sLevel(100,10)};
+    int nLevel = 0;
 
 public:
     GAME(){
@@ -976,8 +990,15 @@ public:
 
     void ScoreArea(float fArea){
         if(fArea == fLastArea) return;
-        int score = fLastArea-fArea;
-        nScore += score*10;
+        int score = 50+fLastArea-fArea;
+        if(score >= 75) nScore += score*25;
+        else if(score >= 50) nScore += score*20;
+        else if(score >= 20) nScore += score*15;
+        else if(score >= 10) nScore += score*14;
+        else if(score >= 5) nScore += score*13;
+        else if(score >= 2) nScore += score*12;
+        else if(score >= 1) nScore += score*11;
+        else nScore += score*10;
         fLastArea = fArea;
     }
 
@@ -1016,6 +1037,7 @@ public:
         sndDing = maControl.LoadSound("assets/ding.wav");
         sndBash = maControl.LoadSound("assets/bash.wav");
         sndZap = maControl.LoadSound("assets/zap.wav");
+        sndGameOver = maControl.LoadSound("assets/game-over.mp3");
         maControl.SetVolume(sndDing, 0.50);
         maControl.SetVolume(sndZap, 0.25);
 
@@ -1189,7 +1211,10 @@ public:
         else if(nGameState == E_GAME_LOST){
             SetDrawTarget(0,1);
             Clear(olc::Pixel(0,0,0,96));
-            fontFFS->Draw(*this, "Game Over YEEEEAH!", olc::vf2d(ScreenWidth()/2-9*8, ScreenHeight()/2-10), 18);
+            fontFFS->Draw(*this, "GAME OVER", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 9);
+            fontFFS->Draw(*this, "Final Score:", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+10), 12);
+            fontFFS->Draw(*this, std::to_string(nScore), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+10), 8);
+            maControl.Play(sndGameOver, false);
         }
         return true;
     }
