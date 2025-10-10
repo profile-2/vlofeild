@@ -26,11 +26,9 @@ enum DIRECTIONS{
 
 /*
 TODO:
-Score
-Levels
 
-bugs:
-Once the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
+Bugs:
+Once, the program went into an infinite loop with runaway ram consuption. Couldn't replicate it yet, is most likely related with very short lines produced by backtracking while the ship is in the trail.
 */
 
 std::random_device rd;
@@ -1024,6 +1022,88 @@ public:
         return bonus >= 0 ? bonus : 0;
     }
 
+    void ScreenGameOver(const float& fElapsedTime){
+        fTimer += fElapsedTime;
+        SetDrawTarget(0,1);
+        Clear(olc::Pixel(0,0,0,96));
+        fontFFS->Draw(*this, "GAME OVER", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 9);
+        fontFFS->Draw(*this, "Final Score:", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+10), 12);
+        fontFFS->Draw(*this, std::to_string(nScore), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+10), 8);
+        maControl.Play(sndGameOver, false);
+        if(fTimer >= 9){
+            maControl.Stop(sndGameOver);
+            fontFFS->Draw(*this, "Press SPACE To Restart", olc::vf2d(ScreenWidth()/2-10*8, ScreenHeight()/2+22), 22);
+            if(GetKey(olc::Key::SPACE).bPressed) {
+                ResetField(true);
+                nGameState = E_LEVEL_START;
+                fTimer = 0;
+                boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
+            }
+        }
+    }
+
+    void ScreenLevelComplete(const float& fElapsedTime){
+        fTimer += fElapsedTime;
+        SetDrawTarget(0,1);
+        Clear(olc::Pixel(0,0,0,96));
+        if(nLevel < 3) fontFFS->Draw(*this, "Level Complete", olc::vf2d(ScreenWidth()/2-7*8, ScreenHeight()/2-10), 14);
+        else {
+            fontFFS->Draw(*this, "CONGRATULATIONS!", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2-10), 16);
+            fontFFS->Draw(*this, "GAME COMPLETE!", olc::vf2d(ScreenWidth()/2-7*8, ScreenHeight()/2), 14, {0,0}, olc::RED);
+            fontFFS->Draw(*this, "Final Score:", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+20), 12, {0,0}, olc::GREY);
+            fontFFS->Draw(*this, std::to_string(nScore), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+20), 8, {0,0}, olc::WHITE);
+        }
+        if(fTimer >= 10){
+            if(nLevel < 3){
+                nLevel++;
+                nGameState = E_LEVEL_START;
+                fTimer = 0;
+                boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
+                ResetField(false);
+            }
+            else{
+                fontFFS->Draw(*this, "Press SPACE To Restart", olc::vf2d(ScreenWidth()/2-12*8, ScreenHeight()/2+50), 22);
+                if(GetKey(olc::Key::SPACE).bPressed) {
+                    ResetField(true);
+                    nGameState = E_LEVEL_START;
+                    fTimer = 0;
+                    boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
+                    
+                }
+            }
+        }
+        else if(fTimer >= 1){
+            if(nLevelBonus >= 1){
+                fontFFS->Draw(*this, "Bonus", olc::vf2d(ScreenWidth()/2-14*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                fontFFS->Draw(*this, std::to_string(nLevelBonus), olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                fontFFS->Draw(*this, "% Over Par:", olc::vf2d(ScreenWidth()/2-6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                if(nLevelBonus >= 15) fontFFS->Draw(*this, "100000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                else if(nLevelBonus >= 10) fontFFS->Draw(*this, "50000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                else if(nLevelBonus >= 5) fontFFS->Draw(*this, "25000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+                else fontFFS->Draw(*this, "5000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
+            }
+        }
+    }
+
+    void ScreenLevelStart(const float& fElapsedTime){
+        SetDrawTarget(0,1);
+        Clear(olc::Pixel(0,0,0,96));
+        fontFFS->Draw(*this, "LEVEL", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 6);
+        fontFFS->Draw(*this, std::to_string(nLevel+1), olc::vf2d(ScreenWidth()/2+3*8, ScreenHeight()/2-10),2);
+        fontFFS->Draw(*this, "Boss Speed:", olc::vf2d(ScreenWidth()/2-6*8, ScreenHeight()/2+10), 10, {0,0}, olc::GREY);
+        fontFFS->Draw(*this, std::to_string(levels[nLevel].speed), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+10), 2, {0,0}, olc::GREY);
+        fontFFS->Draw(*this, "Target:  %", olc::vf2d(ScreenWidth()/2-5*8, ScreenHeight()/2+20), 10, {0,0}, olc::GREY);
+        fontFFS->Draw(*this, std::to_string(100-levels[nLevel].target), olc::vf2d(ScreenWidth()/2+2*8, ScreenHeight()/2+20), 2, {0,0}, olc::GREY);
+        fTimer += fElapsedTime;
+        if(fTimer > 4) {
+            nGameState = E_NORMAL;
+            fTimer = 0;
+            boss->SetSpeed(levels[nLevel].speed);
+            SetDrawTarget(0,1);
+            Clear(olc::BLANK);
+        }
+    }
+
     bool OnUserCreate(){
         sprBg_1 = new olc::Sprite("assets/ship_bg_day.png");
         dclBg_1 = new olc::Decal(sprBg_1);
@@ -1211,84 +1291,15 @@ public:
         DrawLives(ship.GetLives(), olc::vf2d(fFieldMarginRight-4,fFieldMarginBottom+8));
 
         if(nGameState == E_LEVEL_START){
-            SetDrawTarget(0,1);
-            Clear(olc::Pixel(0,0,0,96));
-            fontFFS->Draw(*this, "LEVEL", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 6);
-            fontFFS->Draw(*this, std::to_string(nLevel+1), olc::vf2d(ScreenWidth()/2+3*8, ScreenHeight()/2-10),2);
-            fontFFS->Draw(*this, "Boss Speed:", olc::vf2d(ScreenWidth()/2-6*8, ScreenHeight()/2+10), 10, {0,0}, olc::GREY);
-            fontFFS->Draw(*this, std::to_string(levels[nLevel].speed), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+10), 2, {0,0}, olc::GREY);
-            fontFFS->Draw(*this, "Target:  %", olc::vf2d(ScreenWidth()/2-5*8, ScreenHeight()/2+20), 10, {0,0}, olc::GREY);
-            fontFFS->Draw(*this, std::to_string(100-levels[nLevel].target), olc::vf2d(ScreenWidth()/2+2*8, ScreenHeight()/2+20), 2, {0,0}, olc::GREY);
-            fTimer += fElapsedTime;
-            if(fTimer > 4) {
-                nGameState = E_NORMAL;
-                fTimer = 0;
-                boss->SetSpeed(levels[nLevel].speed);
-                SetDrawTarget(0,1);
-                Clear(olc::BLANK);
-            }
+            ScreenLevelStart(fElapsedTime);
         }
         else if(nGameState == E_GAME_WON){
-            fTimer += fElapsedTime;
-            SetDrawTarget(0,1);
-            Clear(olc::Pixel(0,0,0,96));
-            if(nLevel < 3) fontFFS->Draw(*this, "Level Complete", olc::vf2d(ScreenWidth()/2-7*8, ScreenHeight()/2-10), 14);
-            else {
-                fontFFS->Draw(*this, "CONGRATULATIONS!", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2-10), 16);
-                fontFFS->Draw(*this, "GAME COMPLETE!", olc::vf2d(ScreenWidth()/2-7*8, ScreenHeight()/2), 14, {0,0}, olc::RED);
-                fontFFS->Draw(*this, "Final Score:", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+20), 12, {0,0}, olc::GREY);
-                fontFFS->Draw(*this, std::to_string(nScore), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+20), 8, {0,0}, olc::WHITE);
-            }
-            if(fTimer >= 10){
-                if(nLevel < 3){
-                    nLevel++;
-                    nGameState = E_LEVEL_START;
-                    fTimer = 0;
-                    boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
-                    ResetField(false);
-                }
-                else{
-                    fontFFS->Draw(*this, "Press SPACE To Restart", olc::vf2d(ScreenWidth()/2-12*8, ScreenHeight()/2+50), 22);
-                    if(GetKey(olc::Key::SPACE).bPressed) {
-                        ResetField(true);
-                        nGameState = E_LEVEL_START;
-                        fTimer = 0;
-                        boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
-                        
-                    }
-                }
-            }
-            else if(fTimer >= 1){
-                if(nLevelBonus >= 1){
-                    fontFFS->Draw(*this, "Bonus", olc::vf2d(ScreenWidth()/2-14*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    fontFFS->Draw(*this, std::to_string(nLevelBonus), olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    fontFFS->Draw(*this, "% Over Par:", olc::vf2d(ScreenWidth()/2-6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    if(nLevelBonus >= 15) fontFFS->Draw(*this, "100000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    else if(nLevelBonus >= 10) fontFFS->Draw(*this, "50000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    else if(nLevelBonus >= 5) fontFFS->Draw(*this, "25000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                    else fontFFS->Draw(*this, "5000", olc::vf2d(ScreenWidth()/2+6*8, ScreenHeight()/2+10), 14, {0,0}, olc::YELLOW);
-                }
-            }
+            ScreenLevelComplete(fElapsedTime);
         }
         else if(nGameState == E_GAME_LOST){
-            fTimer += fElapsedTime;
-            SetDrawTarget(0,1);
-            Clear(olc::Pixel(0,0,0,96));
-            fontFFS->Draw(*this, "GAME OVER", olc::vf2d(ScreenWidth()/2-4*8, ScreenHeight()/2-10), 9);
-            fontFFS->Draw(*this, "Final Score:", olc::vf2d(ScreenWidth()/2-8*8, ScreenHeight()/2+10), 12);
-            fontFFS->Draw(*this, std::to_string(nScore), olc::vf2d(ScreenWidth()/2+5*8, ScreenHeight()/2+10), 8);
-            maControl.Play(sndGameOver, false);
-            if(fTimer >= 9){
-                maControl.Stop(sndGameOver);
-                fontFFS->Draw(*this, "Press SPACE To Restart", olc::vf2d(ScreenWidth()/2-10*8, ScreenHeight()/2+22), 22);
-                if(GetKey(olc::Key::SPACE).bPressed) {
-                    ResetField(true);
-                    nGameState = E_LEVEL_START;
-                    fTimer = 0;
-                    boss->SetPos(olc::vf2d(fFieldMarginRight-60, fFieldMarginTop+10));
-                }
-            }
+            ScreenGameOver(fElapsedTime);
         }
+        
         return true;
     }
 };
