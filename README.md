@@ -1,4 +1,3 @@
-Qix/Volfied clone made on OneLoneCoder's PixelGameEngine.
 <img width="1187" height="870" alt="vlofield2" src="https://github.com/user-attachments/assets/b2d59bd4-3174-429a-a198-1d27cd45421d" />
 Controls:
 - Arrow keys: move ship
