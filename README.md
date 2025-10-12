@@ -10,6 +10,3 @@ Credits:
 - Background were captured from video from JeffHK https://www.youtube.com/watch?v=AHrCI9eSJGQ
 
 This coding project incorporates the DVD logo purely for satirical and humorous effect. The creator does not own the DVD logo, nor is this project affiliated with, endorsed by, or authorized by its trademark holders. All rights to the logo remain with their respective owners.
-
-
-The creator does not own the trademarks, copyrights, or any other intellectual property rights related to Qix or Volfied. All such rights remain with their respective owners. This project is not affiliated with, endorsed by, or authorized by Taito Corporation (or its parent company, Square Enix Holdings) in any way. This project is intended for non-commercial, personal, or educational use only.
